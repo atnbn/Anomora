@@ -21,7 +21,7 @@ Die Konfiguration ist zunächst auf Previews ausgerichtet: Automatische Git-Depl
 4. Vercel baut denselben Branch unabhängig über seine GitHub-Anbindung. Vor dem Build führt Vercel dieselben Qualitätsprüfungen aus. Schlägt eine davon fehl, wird dieses Deployment nicht veröffentlicht.
 5. Nach erfolgreichem Build erhältst du die Preview-URL im Vercel-Dashboard und am Pull Request.
 
-Vercel wartet bei diesem Aufbau nicht auf den GitHub-Actions-Job. Stattdessen erzwingt sein eigener Build die gleichen Prüfungen. Neue Pushes auf einen Branch erzeugen neue Previews, auch wenn noch kein Pull Request geöffnet wurde. Der GitHub-Actions-Workflow startet bei Pull Requests nach `main` und beim Push auf `main`.
+Vercel wartet bei diesem Aufbau nicht auf den GitHub-Actions-Job. Stattdessen erzwingt sein eigener Build die gleichen Prüfungen. Vorher wird ausschließlich die im Cloud-Build bereitgestellte `vercel.json` mit Prettier normalisiert, damit deren Formatierung den Build nicht blockiert. GitHub Actions prüft die ursprünglichen Repository-Dateien ohne vorherige Formatierung. Neue Pushes auf einen Branch erzeugen neue Previews, auch wenn noch kein Pull Request geöffnet wurde. Der GitHub-Actions-Workflow startet bei Pull Requests nach `main` und beim Push auf `main`.
 
 Die CI verwendet ausdrücklich Dummy-Werte für Supabase und verändert keine Cloud-Daten. Sie testet die Codequalität und den Build, aber nicht die Datenbankverbindung oder eine Benutzeranmeldung. Vercel braucht dagegen die echten Werte des Entwicklungsprojekts für eine funktionsfähige Preview.
 
