@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { FileTextIcon, SearchIcon, SearchXIcon } from "lucide-react";
+import {
+  FileTextIcon,
+  Loader2Icon,
+  SearchIcon,
+  SearchXIcon,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +20,10 @@ import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import { profileHref } from "@/features/profiles/components/user-name";
 import { usePosts } from "@/features/community/hooks";
 import { listAnimeSync } from "@/lib/data/anime";
+import {
+  useAnimeSearch,
+  useDebouncedValue,
+} from "@/features/anime/anime-cache";
 import { getUserByIdSync, listUsersSync } from "@/lib/data/users";
 import { cn } from "@/lib/utils";
 
@@ -43,29 +52,40 @@ export function GlobalSearch({ variant }: { variant: "field" | "icon" }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // AniList erst nach einer Tipp-Pause und ab 2 Zeichen fragen – Ergebnisse sind gecacht.
+  const debounced = useDebouncedValue(deferred, 400);
+  const live = useAnimeSearch(
+    open && debounced.length >= 2 ? { search: debounced } : null,
+  );
+  const liveItems = live.status === "success" ? live.result.items : undefined;
+
   const groups = useMemo(() => {
     if (!deferred) return null;
-    const anime: Result[] = listAnimeSync({ search: deferred })
-      .slice(0, 5)
-      .map((item) => ({
-        key: item.id,
-        href: `/anime/${item.slug}`,
-        node: (
-          <>
-            <AnimeCover
-              anime={item}
-              aspect="poster"
-              className="w-9 shrink-0 rounded-sm"
-            />
-            <span className="min-w-0">
-              <span className="block truncate font-semibold">{item.title}</span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {item.year} · {item.genres.slice(0, 2).join(", ")}
-              </span>
+    const local = listAnimeSync({ search: deferred });
+    const seen = new Set(local.map((item) => item.id));
+    const merged = [
+      ...local,
+      ...(liveItems ?? []).filter((item) => !seen.has(item.id)),
+    ];
+    const anime: Result[] = merged.slice(0, 6).map((item) => ({
+      key: item.id,
+      href: `/anime/${item.slug}`,
+      node: (
+        <>
+          <AnimeCover
+            anime={item}
+            aspect="poster"
+            className="w-9 shrink-0 rounded-sm"
+          />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold">{item.title}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {item.year} · {item.genres.slice(0, 2).join(", ")}
             </span>
-          </>
-        ),
-      }));
+          </span>
+        </>
+      ),
+    }));
     const users: Result[] = listUsersSync()
       .filter((user) =>
         `${user.username} ${user.displayName}`
@@ -122,7 +142,7 @@ export function GlobalSearch({ variant }: { variant: "field" | "icon" }) {
       { label: "Nutzer", results: users },
       { label: "Beiträge", results: postResults },
     ].filter((group) => group.results.length > 0);
-  }, [deferred, posts]);
+  }, [deferred, posts, liveItems]);
 
   const first = groups?.[0]?.results[0];
 
@@ -198,24 +218,40 @@ export function GlobalSearch({ variant }: { variant: "field" | "icon" }) {
         <div className="max-h-[60dvh] overflow-y-auto p-2" aria-live="polite">
           {!groups && (
             <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Tippe, um im Katalog, in Profilen und Beiträgen zu suchen.
+              Tippe, um bei AniList, in Profilen und Beiträgen zu suchen.
             </p>
           )}
-          {groups && groups.length === 0 && (
-            <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
-              <SearchXIcon
-                className="size-6 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <p className="font-semibold">
-                Keine Treffer für „{query.trim()}“
+          {groups &&
+            deferred.length >= 2 &&
+            (live.status === "loading" || debounced !== deferred) && (
+              <p className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                <Loader2Icon
+                  className="size-3.5 animate-spin"
+                  aria-hidden="true"
+                />
+                Suche bei AniList …
               </p>
-              <p className="text-sm text-muted-foreground">
-                Prüfe die Schreibweise oder suche nach einem Genre wie
-                „Fantasy“.
-              </p>
-            </div>
-          )}
+            )}
+          {groups &&
+            groups.length === 0 &&
+            !(
+              deferred.length >= 2 &&
+              (live.status === "loading" || debounced !== deferred)
+            ) && (
+              <div className="flex flex-col items-center gap-2 px-3 py-10 text-center">
+                <SearchXIcon
+                  className="size-6 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <p className="font-semibold">
+                  Keine Treffer für „{query.trim()}“
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Prüfe die Schreibweise oder suche nach einem Genre wie
+                  „Fantasy“.
+                </p>
+              </div>
+            )}
           {groups?.map((group) => (
             <div key={group.label} className="py-1">
               <p className="px-3 py-1.5 text-xs font-bold tracking-wider text-muted-foreground uppercase">

@@ -4,7 +4,10 @@ import type { Anime } from "@/features/anime/types";
 import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
 import { cn } from "@/lib/utils";
 
-type CoverAnime = Pick<Anime, "id" | "title" | "art" | "coverUrl">;
+type CoverAnime = Pick<
+  Anime,
+  "id" | "title" | "art" | "coverUrl" | "coverColor"
+>;
 
 const aspectClass = {
   poster: "aspect-[3/4]",
@@ -14,14 +17,20 @@ const aspectClass = {
 } as const;
 
 /**
- * Cover eines Anime: echtes Bild (sobald eine API angebunden ist),
- * sonst generiertes Demo-Artwork, sonst ein neutraler Platzhalter.
+ * Cover eines Anime: Bild von AniList, sonst generiertes Demo-Artwork,
+ * sonst ein neutraler Platzhalter.
+ *
+ * `preferArt` erzwingt das Demo-Artwork – für Beitragsbilder, damit offizielle
+ * Cover nicht wie Fotos von Nutzerinnen und Nutzern wirken.
+ * Standardmäßig dekorativ (`alt=""`), weil der Titel daneben steht.
  */
 export function AnimeCover({
   anime,
   variant = 0,
   aspect = "poster",
   showTitle = false,
+  preferArt = false,
+  alt = "",
   sizes = "(min-width: 1024px) 200px, 40vw",
   priority = false,
   className,
@@ -30,10 +39,15 @@ export function AnimeCover({
   variant?: number;
   aspect?: keyof typeof aspectClass;
   showTitle?: boolean;
+  preferArt?: boolean;
+  alt?: string;
   sizes?: string;
   priority?: boolean;
   className?: string;
 }) {
+  const useArt = Boolean(anime.art) && (preferArt || !anime.coverUrl);
+  const useImage = !useArt && Boolean(anime.coverUrl);
+
   return (
     <div
       className={cn(
@@ -41,20 +55,25 @@ export function AnimeCover({
         aspectClass[aspect],
         className,
       )}
+      style={
+        useImage && anime.coverColor
+          ? { backgroundColor: anime.coverColor }
+          : undefined
+      }
     >
-      {anime.coverUrl ? (
+      {useImage ? (
         <Image
-          src={anime.coverUrl}
-          alt={`Cover von ${anime.title}`}
+          src={anime.coverUrl!}
+          alt={alt}
           fill
           sizes={sizes}
           priority={priority}
           className="object-cover"
           unoptimized
         />
-      ) : anime.art ? (
+      ) : useArt ? (
         <AnimeArtwork
-          art={anime.art}
+          art={anime.art!}
           seed={`${anime.id}-${variant}`}
           className="absolute inset-0 size-full"
         />
@@ -65,7 +84,8 @@ export function AnimeCover({
         </div>
       )}
 
-      {showTitle && (anime.art || anime.coverUrl) && (
+      {/* Echte Cover tragen den Titel bereits – nur das Demo-Artwork bekommt ihn eingeblendet. */}
+      {showTitle && useArt && (
         <>
           <div
             aria-hidden="true"
@@ -79,6 +99,56 @@ export function AnimeCover({
           </span>
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Breiter Hintergrund für Heros und Banner: AniList-Banner, sonst das Cover
+ * unscharf vergrößert, sonst Demo-Artwork.
+ */
+export function AnimeBackdrop({
+  anime,
+  seed,
+  className,
+  priority = false,
+}: {
+  anime: Pick<Anime, "id" | "art" | "coverUrl" | "bannerUrl" | "coverColor">;
+  seed: string;
+  className?: string;
+  priority?: boolean;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn("absolute inset-0 overflow-hidden bg-muted", className)}
+      style={
+        anime.coverColor ? { backgroundColor: anime.coverColor } : undefined
+      }
+    >
+      {anime.bannerUrl ? (
+        <Image
+          src={anime.bannerUrl}
+          alt=""
+          fill
+          sizes="100vw"
+          priority={priority}
+          className="object-cover"
+          unoptimized
+        />
+      ) : anime.coverUrl ? (
+        <Image
+          src={anime.coverUrl}
+          alt=""
+          fill
+          sizes="100vw"
+          priority={priority}
+          className="scale-125 object-cover blur-2xl"
+          unoptimized
+        />
+      ) : anime.art ? (
+        <AnimeArtwork art={anime.art} seed={seed} className="size-full" />
+      ) : null}
     </div>
   );
 }

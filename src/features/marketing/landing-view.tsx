@@ -9,11 +9,16 @@ import {
 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { SpoilerGuard } from "@/components/feedback/spoiler-guard";
-import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
-import { AnimeCover } from "@/features/anime/components/anime-cover";
+import {
+  AnimeBackdrop,
+  AnimeCover,
+} from "@/features/anime/components/anime-cover";
+import { AniListCredit } from "@/features/anime/components/anilist-credit";
 import { DemoButton } from "@/features/marketing/marketing-chrome";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
-import { getAnimeBySlugSync, listAnimeSync } from "@/lib/data/anime";
+import { demoAnime } from "@/data/demo/anime";
+import { getLiveCatalog } from "@/lib/anime-api/anilist";
+import { formatDateTime } from "@/lib/format";
 import { getUserByIdSync } from "@/lib/data/users";
 
 const features = [
@@ -54,12 +59,23 @@ const steps = [
   },
 ];
 
-export function LandingView() {
-  const onePiece = getAnimeBySlugSync("one-piece")!;
-  const conan = getAnimeBySlugSync("detektiv-conan")!;
-  const frieren = getAnimeBySlugSync("frieren")!;
-  const popular = listAnimeSync({ sort: "popular" })
-    .filter((anime) => anime.art)
+export async function LandingView() {
+  // Derselbe gecachte Katalog wie im Root-Layout – keine zusätzliche Anfrage.
+  const catalog = (await getLiveCatalog())?.items ?? demoAnime;
+  const bySlug = (slug: string) =>
+    catalog.find((anime) => anime.slug === slug)!;
+  // Hero: die Serie mit der nächsten angekündigten Folge.
+  const featured =
+    catalog
+      .filter((anime) => anime.nextAiring)
+      .toSorted((a, b) => a.nextAiring!.airingAt - b.nextAiring!.airingAt)[0] ??
+    bySlug("one-piece");
+  const side = catalog.filter((anime) => anime.id !== featured.id);
+  const conan = side[0];
+  const frieren = side[1];
+  const popular = catalog
+    .toSorted((a, b) => b.score - a.score)
+    .filter((anime) => anime.coverUrl || anime.art)
     .slice(0, 6);
   const commenterA = getUserByIdSync("u-conanmaster");
   const commenterB = getUserByIdSync("u-shinichi");
@@ -94,7 +110,8 @@ export function LandingView() {
               <DemoButton />
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
-              Demo-Version: Inhalte, Termine und Konten sind Beispieldaten.
+              Anime-Daten live von AniList · Community-Inhalte und Konten sind
+              Beispieldaten.
             </p>
           </div>
 
@@ -107,41 +124,35 @@ export function LandingView() {
             </div>
             <div className="relative mx-8 overflow-hidden rounded-2xl border bg-card shadow-2xl sm:mx-12">
               <div className="relative aspect-[4/3]">
-                {onePiece.art && (
-                  <AnimeArtwork
-                    art={onePiece.art}
-                    seed="landing-hero"
-                    className="absolute inset-0 size-full"
-                  />
-                )}
+                <AnimeBackdrop anime={featured} seed="landing-hero" priority />
                 <div className="absolute inset-0 bg-linear-to-t from-black/80 to-transparent" />
                 <p className="absolute bottom-3 left-4 font-display text-3xl font-bold text-white uppercase">
-                  One Piece
+                  {featured.title}
                 </p>
               </div>
               <div className="p-4">
-                <p className="text-xs font-bold tracking-wider text-brand uppercase">
-                  Nächste Folge
-                </p>
-                <p className="mt-1 font-display text-2xl font-bold">
-                  Episode 1157
-                </p>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                  {[
-                    ["02", "Tage"],
-                    ["04", "Std."],
-                    ["30", "Min."],
-                  ].map(([value, label]) => (
-                    <div key={label} className="rounded-md bg-muted py-2">
-                      <span className="block font-display text-xl leading-none font-bold">
-                        {value}
-                      </span>
-                      <span className="text-[0.625rem] font-semibold text-muted-foreground uppercase">
-                        {label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                {featured.nextAiring ? (
+                  <>
+                    <p className="text-xs font-bold tracking-wider text-brand uppercase">
+                      Nächste Folge
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-bold">
+                      Episode {featured.nextAiring.episode}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatDateTime(featured.nextAiring.airingAt)} Uhr
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold tracking-wider text-brand uppercase">
+                      {featured.studio}
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-bold">
+                      {featured.episodeCount} Episoden
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -291,6 +302,7 @@ export function LandingView() {
               </li>
             ))}
           </ul>
+          <AniListCredit className="mt-4" />
         </div>
       </section>
 

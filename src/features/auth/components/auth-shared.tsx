@@ -4,14 +4,10 @@ import Link from "next/link";
 import { LogOutIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import type { AccountStatus } from "@/features/demo/store";
-import { demoActions } from "@/features/demo/store";
+import { signOut } from "@/features/auth/supabase-auth";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import type { UserProfile } from "@/features/profiles/types";
 import { safeRedirect } from "@/lib/validation/auth";
-
-/** Simulierte Netzwerkverzögerung, damit Ladezustände sichtbar sind. */
-export const simulateRequest = (ms = 650) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Wohin nach der Anmeldung: erst E-Mail bestätigen, dann Onboarding. */
 export function routeAfterSignIn(status: AccountStatus, next: string | null) {
@@ -54,11 +50,7 @@ export function SignedInNotice({ viewer }: { viewer: UserProfile }) {
         <Link href="/dashboard" className={buttonVariants({ size: "lg" })}>
           Weiter zum Dashboard
         </Link>
-        <Button
-          variant="outline"
-          size="lg"
-          onClick={() => demoActions.signOut()}
-        >
+        <Button variant="outline" size="lg" onClick={() => void signOut()}>
           <LogOutIcon aria-hidden="true" />
           Abmelden und anderes Konto nutzen
         </Button>

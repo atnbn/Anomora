@@ -33,6 +33,7 @@ import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import { profileHref } from "@/features/profiles/components/user-name";
 import { useViewer } from "@/features/profiles/hooks";
 import { demoActions, resetDemoState } from "@/features/demo/store";
+import { signOut } from "@/features/auth/supabase-auth";
 import {
   ACCENTS,
   setAccent,
@@ -207,7 +208,7 @@ export function ProfileMenu() {
             className={itemClass}
             variant="destructive"
             onClick={() => {
-              demoActions.signOut();
+              void signOut();
               toast("Abgemeldet", {
                 description: "Du siehst ANIMORA jetzt wie ein Gast.",
               });

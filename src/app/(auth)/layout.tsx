@@ -2,15 +2,17 @@ import Link from "next/link";
 import { Logo } from "@/components/brand/logo";
 import { AnimeCover } from "@/features/anime/components/anime-cover";
 import { LegalLinks } from "@/features/marketing/legal-links";
-import { listAnimeSync } from "@/lib/data/anime";
+import { demoAnime } from "@/data/demo/anime";
+import { getLiveCatalog } from "@/lib/anime-api/anilist";
 
-export default function AuthLayout({
+export default async function AuthLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const covers = listAnimeSync({ sort: "popular" })
-    .filter((anime) => anime.art)
+  const catalog = (await getLiveCatalog())?.items ?? demoAnime;
+  const covers = catalog
+    .filter((anime) => anime.coverUrl || anime.art)
     .slice(0, 10);
 
   return (

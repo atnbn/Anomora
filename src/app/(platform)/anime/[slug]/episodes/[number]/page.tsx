@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { DetailSkeleton } from "@/components/feedback/skeletons";
 import { EpisodeDiscussionView } from "@/features/anime/components/episode-discussion-view";
-import { getEpisode, getFeaturedEpisodeParams } from "@/lib/data/anime";
+import { getFeaturedEpisodeParams } from "@/lib/data/anime";
+import { getEpisode } from "@/lib/data/anime-server";
 
 type Props = PageProps<"/anime/[slug]/episodes/[number]">;
 

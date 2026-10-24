@@ -3,7 +3,6 @@
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import type { Comment, Post } from "@/features/community/types";
-import { AVATAR_HUES } from "@/features/profiles/avatar";
 import type { UserProfile } from "@/features/profiles/types";
 import type {
   DemoReport,
@@ -26,11 +25,7 @@ import {
   demoModerationLog,
   demoReports,
 } from "@/data/demo/moderation";
-import {
-  getUserByIdSync,
-  isUsernameTaken,
-  setLocalProfiles,
-} from "@/lib/data/users";
+import { getUserByIdSync, setLocalProfiles } from "@/lib/data/users";
 import { formatDateTime } from "@/lib/format";
 
 export type { DemoReport, ReportReason } from "@/features/moderation/types";
@@ -44,13 +39,17 @@ export type { DemoReport, ReportReason } from "@/features/moderation/types";
  * Lokal registrierte Konten speichern nur E-Mail und Profildaten.
  */
 
-export type DemoSession = { userId: string };
+/**
+ * `supabase`: echte Anmeldung (Sitzung in Supabase-Cookies, hier gespiegelt).
+ * `demo`: vorgegebenes Demo-Konto ohne Anmeldung.
+ */
+export type DemoSession = { userId: string; kind: "demo" | "supabase" };
 
 export type DemoPreferences = {
   spoilerProtection: boolean;
 };
 
-/** Im Browser registriertes Demo-Konto – bewusst ohne Passwort. */
+/** Spiegel eines Supabase-Kontos (Profil aus den Nutzer-Metadaten) – ohne Passwort oder Token. */
 export type DemoAccount = {
   id: string;
   email: string;
@@ -74,8 +73,8 @@ export type DemoState = {
   accounts: DemoAccount[];
   profileOverrides: Record<string, Partial<UserProfile>>;
   userLists: Record<string, UserLists>;
-  /** E-Mail, für die ein Passwort-Reset angefordert wurde (simulierter Link). */
-  passwordResetEmail: string | null;
+  /** E-Mail einer Registrierung, die noch bestätigt werden muss. */
+  pendingEmail: string | null;
   reports: DemoReport[];
   bans: UserBan[];
   moderationLog: ModerationLogEntry[];
@@ -105,6 +104,8 @@ type RuntimeState = DemoState & {
   hydrated: boolean;
   /** Grund, warum eine Anmeldung nötig ist; öffnet den Anmelde-Hinweis. */
   authPrompt: string | null;
+  /** true, sobald Supabase die (ggf. leere) Sitzung gemeldet hat. */
+  authReady: boolean;
 };
 
 const STORAGE_KEY = "animora.demo.v1";
@@ -131,7 +132,7 @@ function createInitialState(): DemoState {
     accounts: [],
     profileOverrides: {},
     userLists: {},
-    passwordResetEmail: null,
+    pendingEmail: null,
     reports: demoReports,
     bans: demoBans,
     moderationLog: demoModerationLog,
@@ -155,6 +156,7 @@ const serverState: RuntimeState = {
   ...createInitialState(),
   hydrated: false,
   authPrompt: null,
+  authReady: false,
 };
 
 let state: RuntimeState = serverState;
@@ -169,6 +171,7 @@ function persist() {
     const persisted: Partial<RuntimeState> = { ...state };
     delete persisted.hydrated;
     delete persisted.authPrompt;
+    delete persisted.authReady;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
   } catch {
     // Privater Modus oder voller Speicher: Demo läuft ohne Persistenz weiter.
@@ -207,7 +210,10 @@ export function setDemoState(
 }
 
 /** Sichert die Listen des aktuellen Kontos und lädt die des neuen. */
-function switchSession(userId: string | null): Partial<RuntimeState> {
+function switchSession(
+  userId: string | null,
+  kind: DemoSession["kind"] = "demo",
+): Partial<RuntimeState> {
   const userLists = { ...state.userLists };
   if (state.session) {
     userLists[state.session.userId] = {
@@ -218,7 +224,7 @@ function switchSession(userId: string | null): Partial<RuntimeState> {
   }
   if (!userId) return { session: null, userLists };
   return {
-    session: { userId },
+    session: { userId, kind },
     userLists,
     ...(userLists[userId] ?? defaultListsFor(userId)),
     authPrompt: null,
@@ -239,15 +245,25 @@ export function hydrateDemoState() {
     ...createInitialState(),
     ...stored,
     preferences: { ...createInitialState().preferences, ...stored.preferences },
+    // Ältere Stände kennen `kind` noch nicht – das waren immer Demo-Sitzungen.
+    session: stored.session
+      ? { ...stored.session, kind: stored.session.kind ?? "demo" }
+      : null,
     hydrated: true,
     authPrompt: null,
+    authReady: state.authReady,
   };
   syncProfiles();
   emit();
 }
 
 export function resetDemoState() {
-  state = { ...createInitialState(), hydrated: true, authPrompt: null };
+  state = {
+    ...createInitialState(),
+    hydrated: true,
+    authPrompt: null,
+    authReady: state.authReady,
+  };
   syncProfiles();
   persist();
   emit();
@@ -366,14 +382,6 @@ export type AccountStatus = {
   onboardingComplete: boolean;
 };
 
-export function findAccountByEmail(email: string): AccountStatus | undefined {
-  const normalized = email.trim().toLowerCase();
-  if (normalized === DEMO_LOGIN_EMAIL) return getAccountStatus(DEMO_VIEWER_ID);
-  if (normalized === DEMO_MOD_EMAIL) return getAccountStatus(DEMO_MOD_ID);
-  const account = state.accounts.find((entry) => entry.email === normalized);
-  return account ? getAccountStatus(account.id) : undefined;
-}
-
 export function getAccountStatus(userId: string): AccountStatus {
   const account = state.accounts.find((entry) => entry.id === userId);
   if (account) {
@@ -396,63 +404,42 @@ export function getAccountEmail(userId: string): string | undefined {
   return state.accounts.find((entry) => entry.id === userId)?.email;
 }
 
-export type RegisterResult =
-  | { ok: true; userId: string }
-  | { ok: false; field: "email" | "username"; message: string };
-
 export const demoActions = {
+  /** Meldet ein vorgegebenes Demo-Konto an (ohne Supabase). */
   signIn(userId: string = DEMO_VIEWER_ID) {
-    setDemoState(() => switchSession(userId));
+    setDemoState(() => switchSession(userId, "demo"));
   },
+  /** Lokale Abmeldung; für Supabase-Sitzungen `signOut` aus features/auth nutzen. */
   signOut() {
     setDemoState(() => switchSession(null));
   },
-  register(input: { email: string; username: string }): RegisterResult {
-    const email = input.email.trim().toLowerCase();
-    if (findAccountByEmail(email)) {
+  /** Übernimmt das angemeldete Supabase-Konto (von onAuthStateChange). */
+  applyAuthAccount(account: DemoAccount) {
+    setDemoState((current) => {
+      const accounts = [
+        ...current.accounts.filter((entry) => entry.id !== account.id),
+        account,
+      ];
+      const sameSession =
+        current.session?.userId === account.id &&
+        current.session.kind === "supabase";
       return {
-        ok: false,
-        field: "email",
-        message: "Mit dieser E-Mail-Adresse gibt es bereits ein Konto.",
+        accounts,
+        pendingEmail: null,
+        ...(sameSession ? {} : switchSession(account.id, "supabase")),
       };
-    }
-    if (isUsernameTaken(input.username)) {
-      return {
-        ok: false,
-        field: "username",
-        message: "Dieser Nutzername ist schon vergeben.",
-      };
-    }
-    const account: DemoAccount = {
-      id: createId("local"),
-      email,
-      username: input.username,
-      displayName: input.username,
-      avatarHue: AVATAR_HUES[Math.floor(Math.random() * AVATAR_HUES.length)],
-      emailVerified: false,
-      onboardingComplete: false,
-      createdAt: new Date().toISOString(),
-    };
-    setDemoState((current) => ({
-      accounts: [...current.accounts, account],
-      ...switchSession(account.id),
-    }));
-    return { ok: true, userId: account.id };
+    });
   },
-  verifyEmail() {
-    const userId = state.session?.userId;
-    if (!userId) return;
-    setDemoState((current) => ({
-      accounts: current.accounts.map((account) =>
-        account.id === userId ? { ...account, emailVerified: true } : account,
-      ),
-    }));
+  /** Supabase-Sitzung ist weg (abgemeldet oder abgelaufen). */
+  clearAuthSession() {
+    if (state.session?.kind !== "supabase") return;
+    setDemoState(() => switchSession(null));
   },
-  requestPasswordReset(email: string) {
-    setDemoState(() => ({ passwordResetEmail: email.trim().toLowerCase() }));
+  markAuthReady() {
+    if (!state.authReady) setDemoState(() => ({ authReady: true }));
   },
-  completePasswordReset() {
-    setDemoState(() => ({ passwordResetEmail: null }));
+  setPendingEmail(email: string | null) {
+    setDemoState(() => ({ pendingEmail: email }));
   },
   updateProfile(
     userId: string,
@@ -741,55 +728,6 @@ export const demoActions = {
       bans: current.bans.filter((item) => item.userId !== userId),
       moderationLog: [entry, ...current.moderationLog],
     }));
-  },
-  updateEmail(email: string): { ok: true } | { ok: false; message: string } {
-    const userId = state.session?.userId;
-    const normalized = email.trim().toLowerCase();
-    if (!userId) return { ok: false, message: "Du bist nicht angemeldet." };
-    if (!state.accounts.some((account) => account.id === userId)) {
-      return {
-        ok: false,
-        message:
-          "Die E-Mail-Adresse von Demo-Konten kann nicht geändert werden.",
-      };
-    }
-    const existing = findAccountByEmail(normalized);
-    if (existing && existing.userId !== userId) {
-      return {
-        ok: false,
-        message: "Diese E-Mail-Adresse wird bereits verwendet.",
-      };
-    }
-    setDemoState((current) => ({
-      accounts: current.accounts.map((account) =>
-        account.id === userId ? { ...account, email: normalized } : account,
-      ),
-    }));
-    return { ok: true };
-  },
-  deleteAccount(): boolean {
-    const userId = state.session?.userId;
-    if (!userId || !state.accounts.some((account) => account.id === userId))
-      return false;
-    setDemoState((current) => {
-      const userLists = { ...current.userLists };
-      delete userLists[userId];
-      return {
-        session: null,
-        accounts: current.accounts.filter((account) => account.id !== userId),
-        userLists,
-        createdPosts: current.createdPosts.filter(
-          (post) => post.authorId !== userId,
-        ),
-        createdComments: current.createdComments.filter(
-          (comment) => comment.authorId !== userId,
-        ),
-        favorites: [],
-        following: [],
-        watchedEpisodeIds: [],
-      };
-    });
-    return true;
   },
   toggleBlock(userId: string) {
     setDemoState((current) => ({

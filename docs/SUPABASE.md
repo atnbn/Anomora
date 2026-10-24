@@ -53,7 +53,28 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 
 ## Cloud-Projekt konfigurieren
 
-Öffne dein [Supabase-Projekt](https://supabase.com/dashboard/project/ybtcgpqartsuelpllbzt). Unter **Authentication → URL Configuration** verwendest du für die Entwicklung `http://localhost:3000` als Site URL. Ergänze Redirect-URLs für die tatsächlich implementierten Auth-Callbacks, sobald wir diese bauen. Diese Cloud-Einstellungen sind durch die lokalen Dateien noch nicht geändert worden.
+Öffne dein [Supabase-Projekt](https://supabase.com/dashboard/project/ybtcgpqartsuelpllbzt). Diese Cloud-Einstellungen ändern die lokalen Dateien nicht – sie müssen im Dashboard gesetzt werden:
+
+1. **Authentication → URL Configuration**
+   - Site URL: `http://localhost:3000` (später die Produktions-URL)
+   - Redirect URLs: `http://localhost:3000/auth/confirm` und für Vercel-Previews z. B. `https://*-<team>.vercel.app/auth/confirm`
+2. **Authentication → Providers → Email:** „Confirm email“ bleibt aktiv (ANIMORA setzt die Bestätigung voraus).
+3. **E-Mail-Versand:** Der eingebaute Versand von Supabase ist nur für Tests gedacht und stark begrenzt (wenige Mails pro Stunde). Für echte Nutzer unter **Authentication → SMTP Settings** einen eigenen SMTP-Dienst eintragen.
+4. **E-Mail-Vorlagen:** Die Standardvorlagen funktionieren. Ihre Links nutzen PKCE und müssen deshalb im selben Browser geöffnet werden, in dem registriert bzw. der Reset angefordert wurde. Für browserunabhängige Links die Vorlagen auf `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/onboarding` (Reset: `type=recovery&next=/reset-password`) umstellen – `/auth/confirm` unterstützt beide Varianten. Wird ein PKCE-Bestätigungslink in einem anderen Browser geöffnet, ist die Adresse trotzdem bestätigt (Supabase prüft den Link vor der Weiterleitung); die App zeigt dann „E-Mail-Adresse bestätigt – jetzt anmelden“. Ein erneutes Senden an eine schon bestätigte Adresse verschickt keine Mail.
+
+## Anmeldung in ANIMORA
+
+| Datei                                 | Aufgabe                                                                                                                                                             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/features/auth/supabase-auth.ts`  | Registrieren, Anmelden, Abmelden, Bestätigung erneut senden, Passwort zurücksetzen/ändern, E-Mail ändern, Profil-Metadaten speichern; übersetzt Fehler ins Deutsche |
+| `src/app/auth/confirm/route.ts`       | Ziel der E-Mail-Links: tauscht `code` (PKCE) bzw. `token_hash` gegen eine Sitzung und leitet nur auf interne Pfade weiter                                           |
+| `src/features/demo/demo-provider.tsx` | startet `onAuthStateChange` und spiegelt das Konto in den Store                                                                                                     |
+
+- Die Sitzung liegt in Cookies; der Proxy erneuert sie. Seiten lesen die Sitzung im Browser, damit sie statisch vorgerendert bleiben.
+- Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) stehen vorerst in den **Nutzer-Metadaten**. Mit Schritt 2 wandern sie in eine `profiles`-Tabelle mit RLS – erst dann ist der Nutzername projektweit eindeutig.
+- Favoriten, Beiträge, Kommentare und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
+- Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt mit Schritt 2.
+- Die Demo-Konten (`Demo ansehen`) bleiben bestehen und laufen ohne Supabase.
 
 Der Publishable Key ist für den Browser vorgesehen und ist kein Admin-Schlüssel. Datenzugriff wird über Datenbankberechtigungen und **Row Level Security (RLS)** geregelt. Lege neue Tabellen zusammen mit passenden RLS-Regeln an. Ein Secret- oder Service-Role-Key gehört niemals in `NEXT_PUBLIC_*`.
 

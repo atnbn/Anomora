@@ -24,7 +24,7 @@ import { PageContainer } from "@/components/layout/app-shell";
 import { PageTabs } from "@/components/layout/page-tabs";
 import type { Anime } from "@/features/anime/types";
 import type { UserProfile } from "@/features/profiles/types";
-import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
+import { AnimeBackdrop } from "@/features/anime/components/anime-cover";
 import { AnimeCard } from "@/features/anime/components/anime-card";
 import { usePosts } from "@/features/community/hooks";
 import { PostCard } from "@/features/community/components/post-card";
@@ -57,20 +57,16 @@ export function ProfileView({ user }: { user: UserProfile }) {
     .map((id) => getAnimeByIdSync(id))
     .filter((anime): anime is Anime => anime !== undefined);
   const posts = usePosts().filter((post) => post.authorId === user.id);
-  const banner = favorites.find((anime) => anime.art);
+  const banner = favorites.find(
+    (anime) => anime.bannerUrl || anime.coverUrl || anime.art,
+  );
   const [reportOpen, setReportOpen] = useState(false);
   const [blockOpen, setBlockOpen] = useState(false);
 
   return (
     <>
       <div className="relative h-36 overflow-hidden border-b bg-muted sm:h-48">
-        {banner?.art && (
-          <AnimeArtwork
-            art={banner.art}
-            seed={`${user.id}-banner`}
-            className="size-full"
-          />
-        )}
+        {banner && <AnimeBackdrop anime={banner} seed={`${user.id}-banner`} />}
         <div
           aria-hidden="true"
           className="absolute inset-0 bg-linear-to-t from-background/80 to-transparent"

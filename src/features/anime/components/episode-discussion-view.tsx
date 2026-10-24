@@ -16,10 +16,13 @@ import { SpoilerGuard } from "@/components/feedback/spoiler-guard";
 import { PageContainer } from "@/components/layout/app-shell";
 import { Panel } from "@/components/layout/section";
 import type { Anime, Episode } from "@/features/anime/types";
-import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
-import { AnimeCover } from "@/features/anime/components/anime-cover";
+import {
+  AnimeBackdrop,
+  AnimeCover,
+} from "@/features/anime/components/anime-cover";
 import { Countdown } from "@/features/anime/components/countdown";
 import { useTimedEpisodes } from "@/features/anime/episode-timeline";
+import { useRegisterAnime } from "@/features/anime/catalog-provider";
 import { episodeHref } from "@/features/anime/labels";
 import { useComments } from "@/features/community/hooks";
 import { CommentThread } from "@/features/community/components/comment-thread";
@@ -96,6 +99,7 @@ export function EpisodeDiscussionView({
   previous?: Episode;
   next?: Episode;
 }) {
+  useRegisterAnime(anime);
   const timed = useTimedEpisodes(useMemo(() => [rawEpisode], [rawEpisode]));
   const episode = timed[0];
   const { watchedEpisodeIds, preferences, session } = useDemoState();
@@ -112,15 +116,12 @@ export function EpisodeDiscussionView({
   return (
     <>
       <div className="relative isolate overflow-hidden border-b bg-card">
-        <div aria-hidden="true" className="absolute inset-0 -z-10">
-          {anime.art && (
-            <AnimeArtwork
-              art={anime.art}
-              seed={`${anime.id}-${episode.number}`}
-              className="size-full"
-            />
-          )}
-        </div>
+        <AnimeBackdrop
+          anime={anime}
+          seed={`${anime.id}-${episode.number}`}
+          priority
+          className="-z-10"
+        />
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 bg-linear-to-r from-black/85 via-black/60 to-black/20"
@@ -157,10 +158,13 @@ export function EpisodeDiscussionView({
               </h1>
               <p className="mt-2 text-sm text-white/80">
                 {episode.aired
-                  ? `Ausgestrahlt am ${formatDateLong(episode.airTime)}`
+                  ? episode.airDate
+                    ? `Ausgestrahlt am ${formatDateLong(episode.airTime)}`
+                    : "Bereits ausgestrahlt"
                   : `Erscheint am ${formatDateTime(episode.airTime)} Uhr`}
                 {" · "}
-                {episode.durationMinutes} Min. · Demo-Daten
+                {episode.durationMinutes} Min. ·{" "}
+                {episode.live ? "Daten: AniList" : "Demo-Daten"}
               </p>
             </div>
           </div>

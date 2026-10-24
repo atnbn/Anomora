@@ -2,30 +2,34 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CircleCheckIcon,
-  LinkIcon,
   Loader2Icon,
   MailIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DemoNotice } from "@/components/forms/fields";
 import {
-  AuthHeading,
-  simulateRequest,
-} from "@/features/auth/components/auth-shared";
+  FormAlert,
+  TextField,
+  focusFirstInvalid,
+} from "@/components/forms/fields";
+import { AuthHeading } from "@/features/auth/components/auth-shared";
+import {
+  authErrorMessage,
+  resendConfirmation,
+} from "@/features/auth/supabase-auth";
 import {
   demoActions,
-  getAccountEmail,
   getAccountStatus,
   useDemoState,
 } from "@/features/demo/store";
+import { validateEmail } from "@/lib/validation/auth";
 
-const RESEND_COOLDOWN = 30;
+const RESEND_COOLDOWN = 60;
 
 function StatusIcon({
   tone,
@@ -48,12 +52,13 @@ function StatusIcon({
   );
 }
 
-export function VerifyEmailView() {
-  const router = useRouter();
-  const invalidLink = useSearchParams().get("status") === "invalid";
-  const { session, hydrated, accounts } = useDemoState();
+/** Bestätigungsmail erneut anfordern – mit Sperrzeit gegen Spam und Rate-Limits. */
+function ResendForm({ presetEmail }: { presetEmail: string | null }) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const [email, setEmail] = useState(presetEmail ?? "");
+  const [error, setError] = useState<string | undefined>();
+  const [pending, setPending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -61,7 +66,68 @@ export function VerifyEmailView() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  if (!hydrated) {
+  return (
+    <form
+      ref={formRef}
+      noValidate
+      className="grid gap-3"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const nextError = validateEmail(email);
+        setError(nextError);
+        if (nextError) return focusFirstInvalid(formRef.current);
+        setPending(true);
+        try {
+          await resendConfirmation(email.trim().toLowerCase());
+          setCooldown(RESEND_COOLDOWN);
+          toast.success("Neuer Bestätigungslink gesendet", {
+            description: "Schau auch im Spam-Ordner nach.",
+          });
+        } catch (caught) {
+          setError(authErrorMessage(caught as Error));
+        } finally {
+          setPending(false);
+        }
+      }}
+    >
+      {!presetEmail && (
+        <TextField
+          label="E-Mail-Adresse"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          value={email}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setError(undefined);
+          }}
+          error={error}
+          disabled={pending}
+        />
+      )}
+      {presetEmail && error && <FormAlert>{error}</FormAlert>}
+      <Button
+        type="submit"
+        size="lg"
+        variant={presetEmail ? "outline" : "default"}
+        disabled={pending || cooldown > 0}
+      >
+        {pending && <Loader2Icon className="animate-spin" aria-hidden="true" />}
+        {cooldown > 0
+          ? `Erneut senden in ${cooldown} s`
+          : "Bestätigungslink erneut senden"}
+      </Button>
+    </form>
+  );
+}
+
+export function VerifyEmailView() {
+  const router = useRouter();
+  const linkStatus = useSearchParams().get("status");
+  const { session, hydrated, authReady, pendingEmail, accounts } =
+    useDemoState();
+
+  if (!hydrated || !authReady) {
     return (
       <div className="space-y-4" aria-busy="true" aria-label="Wird geladen">
         <Skeleton className="size-14 rounded-full" />
@@ -71,47 +137,12 @@ export function VerifyEmailView() {
     );
   }
 
-  if (!session) {
-    return (
-      <>
-        <StatusIcon tone="brand">
-          <MailIcon className="size-6" aria-hidden="true" />
-        </StatusIcon>
-        <AuthHeading
-          title="E-Mail bestätigen"
-          description="Melde dich an, um den Status deiner Bestätigung zu sehen oder einen neuen Link anzufordern."
-        />
-        <Link
-          href="/login"
-          className={buttonVariants({ size: "lg", className: "w-full" })}
-        >
-          Zur Anmeldung
-        </Link>
-      </>
-    );
-  }
-
-  // accounts als Abhängigkeit sorgt für Neuberechnung nach der Bestätigung.
+  // accounts als Abhängigkeit: der Status ändert sich mit dem gespiegelten Konto.
   void accounts;
-  const status = getAccountStatus(session.userId);
-  const email = getAccountEmail(session.userId);
+  const status =
+    session?.kind === "supabase" ? getAccountStatus(session.userId) : null;
 
-  function resend() {
-    setCooldown(RESEND_COOLDOWN);
-    toast.success("Neuer Bestätigungslink gesendet", {
-      description: "Demo: Es wird keine echte E-Mail verschickt.",
-    });
-    if (invalidLink) router.replace("/verify-email");
-  }
-
-  async function openDemoLink() {
-    setVerifying(true);
-    await simulateRequest(500);
-    demoActions.verifyEmail();
-    setVerifying(false);
-  }
-
-  if (status.emailVerified) {
+  if (status?.emailVerified) {
     return (
       <>
         <StatusIcon tone="success">
@@ -137,7 +168,30 @@ export function VerifyEmailView() {
     );
   }
 
-  if (invalidLink) {
+  // Link geprüft, aber in einem anderen Browser geöffnet: bestätigt, nur nicht angemeldet.
+  if (linkStatus === "confirmed") {
+    return (
+      <>
+        <StatusIcon tone="success">
+          <CircleCheckIcon className="size-7" aria-hidden="true" />
+        </StatusIcon>
+        <div role="status">
+          <AuthHeading
+            title="E-Mail-Adresse bestätigt"
+            description="Melde dich jetzt mit deiner E-Mail-Adresse und deinem Passwort an. Danach richtest du dein Profil ein."
+          />
+        </div>
+        <Link
+          href="/login"
+          className={buttonVariants({ size: "lg", className: "w-full" })}
+        >
+          Jetzt anmelden
+        </Link>
+      </>
+    );
+  }
+
+  if (linkStatus === "invalid") {
     return (
       <>
         <StatusIcon tone="error">
@@ -145,20 +199,20 @@ export function VerifyEmailView() {
         </StatusIcon>
         <div role="alert">
           <AuthHeading
-            title="Dieser Link ist abgelaufen"
-            description="Bestätigungslinks sind aus Sicherheitsgründen nur 24 Stunden gültig. Fordere einfach einen neuen an."
+            title="Dieser Link funktioniert nicht mehr"
+            description="Bestätigungslinks sind nur begrenzt gültig und funktionieren nur einmal. Hast du ihn schon einmal geöffnet, ist deine Adresse vermutlich bestätigt – melde dich einfach an. Sonst fordere einen neuen Link an."
           />
         </div>
-        <Button
-          size="lg"
-          className="w-full"
-          onClick={resend}
-          disabled={cooldown > 0}
-        >
-          {cooldown > 0
-            ? `Neuer Link in ${cooldown} s möglich`
-            : "Neuen Link senden"}
-        </Button>
+        <ResendForm presetEmail={pendingEmail} />
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Schon bestätigt?{" "}
+          <Link
+            href="/login"
+            className="font-semibold text-brand hover:underline"
+          >
+            Anmelden
+          </Link>
+        </p>
       </>
     );
   }
@@ -171,68 +225,50 @@ export function VerifyEmailView() {
       <AuthHeading
         title="Bestätige deine E-Mail"
         description={
-          <>
-            Wir haben einen Link an{" "}
-            <span className="font-semibold break-all text-foreground">
-              {email}
-            </span>{" "}
-            geschickt. Öffne ihn, um dein Konto zu aktivieren.
-          </>
+          pendingEmail ? (
+            <>
+              Wir haben einen Link an{" "}
+              <span className="font-semibold break-all text-foreground">
+                {pendingEmail}
+              </span>{" "}
+              geschickt. Öffne ihn in diesem Browser, um dein Konto zu
+              aktivieren.
+            </>
+          ) : (
+            "Öffne den Link aus unserer E-Mail, um dein Konto zu aktivieren. Keine E-Mail bekommen? Fordere hier einen neuen Link an."
+          )
         }
       />
 
-      <div className="grid gap-3">
-        <Button size="lg" onClick={openDemoLink} disabled={verifying}>
-          {verifying ? (
-            <Loader2Icon className="animate-spin" aria-hidden="true" />
-          ) : (
-            <LinkIcon aria-hidden="true" />
-          )}
-          {verifying ? "Wird bestätigt …" : "Demo: Bestätigungslink öffnen"}
-        </Button>
-        <Button
-          size="lg"
-          variant="outline"
-          onClick={resend}
-          disabled={cooldown > 0}
-        >
-          {cooldown > 0
-            ? `Erneut senden in ${cooldown} s`
-            : "E-Mail erneut senden"}
-        </Button>
-      </div>
+      <ResendForm presetEmail={pendingEmail} />
 
       <ul className="mt-6 grid gap-1.5 text-sm text-muted-foreground">
         <li>Keine E-Mail da? Schau auch im Spam-Ordner nach.</li>
+        {pendingEmail && (
+          <li>
+            Falsche Adresse?{" "}
+            <button
+              type="button"
+              onClick={() => {
+                demoActions.setPendingEmail(null);
+                router.push("/register");
+              }}
+              className="font-semibold text-brand hover:underline"
+            >
+              Neu registrieren
+            </button>
+          </li>
+        )}
         <li>
-          Falsche Adresse?{" "}
-          <button
-            type="button"
-            onClick={() => {
-              demoActions.signOut();
-              router.push("/register");
-            }}
-            className="font-semibold text-brand hover:underline"
-          >
-            Neu registrieren
-          </button>
-        </li>
-        <li>
+          Schon bestätigt?{" "}
           <Link
-            href="/verify-email?status=invalid"
+            href="/login"
             className="font-semibold text-brand hover:underline"
           >
-            Demo: abgelaufenen Link simulieren
+            Anmelden
           </Link>
         </li>
       </ul>
-
-      <div className="mt-8">
-        <DemoNotice>
-          Demo-Modus: Es wird keine E-Mail verschickt. Der Button oben ersetzt
-          den Link aus der Bestätigungs-E-Mail.
-        </DemoNotice>
-      </div>
     </>
   );
 }

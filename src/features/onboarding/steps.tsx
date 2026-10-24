@@ -23,13 +23,15 @@ import { AVATAR_COLORS, AVATAR_HUES } from "@/features/profiles/avatar";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import type { UserProfile } from "@/features/profiles/types";
 import { demoActions, useDemoState } from "@/features/demo/store";
+import { authErrorMessage, saveProfile } from "@/features/auth/supabase-auth";
 import {
   ACCENTS,
   setAccent,
   useAccent,
   type AccentId,
 } from "@/features/themes/accent";
-import { getAllGenres, listAnimeSync } from "@/lib/data/anime";
+import { GENRE_OPTIONS } from "@/features/anime/genres";
+import { listAnimeSync } from "@/lib/data/anime";
 import { isUsernameTaken } from "@/lib/data/users";
 import {
   BIO_MAX_LENGTH,
@@ -58,8 +60,13 @@ export function ProfileStep({
   const [hue, setHue] = useState(viewer.avatarHue ?? AVATAR_HUES[0]);
   const [errors, setErrors] = useState<FieldErrors<ProfileField>>({});
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
+    setSaveError(null);
     const name = username.trim();
     const nextErrors: FieldErrors<ProfileField> = {
       displayName: validateDisplayName(displayName),
@@ -75,13 +82,20 @@ export function ProfileStep({
       focusFirstInvalid(formRef.current);
       return;
     }
-    demoActions.updateProfile(viewer.id, {
-      displayName: displayName.trim(),
-      username: name,
-      bio: bio.trim() || undefined,
-      avatarHue: hue,
-    });
-    onDone();
+    setSaving(true);
+    try {
+      await saveProfile(viewer.id, {
+        displayName: displayName.trim(),
+        username: name,
+        bio: bio.trim() || undefined,
+        avatarHue: hue,
+      });
+      onDone();
+    } catch (error) {
+      setSaveError(authErrorMessage(error as Error));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -90,8 +104,14 @@ export function ProfileStep({
       ref={formRef}
       onSubmit={submit}
       noValidate
+      aria-busy={saving}
       className="grid gap-8 md:grid-cols-[12rem_minmax(0,1fr)]"
     >
+      {saveError && (
+        <div className="md:col-span-2">
+          <FormAlert>{saveError}</FormAlert>
+        </div>
+      )}
       <fieldset className="flex flex-col items-center gap-4 md:items-start">
         <legend className="mb-3 text-sm font-semibold">Avatar</legend>
         <UserAvatar
@@ -202,7 +222,22 @@ export function FavoritesStep({
   const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const genres = useMemo(() => getAllGenres().slice(0, 8), []);
+  const genres = useMemo(
+    () =>
+      GENRE_OPTIONS.filter((genre) =>
+        [
+          "Action",
+          "Abenteuer",
+          "Comedy",
+          "Drama",
+          "Fantasy",
+          "Mystery",
+          "Sport",
+          "Übernatürlich",
+        ].includes(genre),
+      ),
+    [],
+  );
   const results = listAnimeSync({
     search,
     genre: genre || undefined,

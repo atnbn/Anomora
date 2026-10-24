@@ -7,6 +7,7 @@ import { CircleAlertIcon, Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DemoNotice,
+  FormAlert,
   PasswordField,
   TextField,
   focusFirstInvalid,
@@ -14,8 +15,8 @@ import {
 import {
   AuthHeading,
   SignedInNotice,
-  simulateRequest,
 } from "@/features/auth/components/auth-shared";
+import { authErrorMessage, signUp } from "@/features/auth/supabase-auth";
 import { demoActions } from "@/features/demo/store";
 import { useViewer } from "@/features/profiles/hooks";
 import { isUsernameTaken } from "@/lib/data/users";
@@ -43,6 +44,7 @@ export function RegisterForm() {
   const [terms, setTerms] = useState(false);
   const [errors, setErrors] = useState<FieldErrors<Field>>({});
   const [pending, setPending] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (hydrated && viewer && !pending) {
     return (
@@ -60,6 +62,7 @@ export function RegisterForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError(null);
     const username = values.username.trim();
     const nextErrors: FieldErrors<Field> = {
       username:
@@ -81,17 +84,30 @@ export function RegisterForm() {
     }
 
     setPending(true);
-    await simulateRequest();
-    const result = demoActions.register({ email: values.email, username });
-    if (!result.ok) {
+    try {
+      const { needsConfirmation } = await signUp({
+        email: values.email,
+        password: values.password,
+        username,
+      });
+      // Das Passwort liegt nur bei Supabase; im Formular wird es sofort verworfen.
+      setValues((current) => ({ ...current, password: "", confirm: "" }));
+      if (needsConfirmation) {
+        demoActions.setPendingEmail(values.email.trim().toLowerCase());
+        router.push("/verify-email");
+      } else {
+        router.push("/onboarding");
+      }
+    } catch (error) {
       setPending(false);
-      setErrors({ [result.field]: result.message });
+      const code = (error as { code?: string }).code;
+      const message = authErrorMessage(error as Error);
+      if (code === "weak_password") setErrors({ password: message });
+      else if (code === "user_already_exists" || code === "email_exists")
+        setErrors({ email: message });
+      else setFormError(message);
       focusFirstInvalid(formRef.current);
-      return;
     }
-    // Passwort wird im Demo-Modus nicht gespeichert und sofort verworfen.
-    setValues((current) => ({ ...current, password: "", confirm: "" }));
-    router.push("/verify-email");
   }
 
   return (
@@ -107,6 +123,7 @@ export function RegisterForm() {
         className="grid gap-5"
         aria-busy={pending}
       >
+        {formError && <FormAlert>{formError}</FormAlert>}
         <TextField
           label="Nutzername"
           name="username"
@@ -214,9 +231,9 @@ export function RegisterForm() {
       </p>
       <div className="mt-8">
         <DemoNotice>
-          Demo-Modus: Das Konto entsteht nur in diesem Browser. Gespeichert
-          werden Nutzername und E-Mail-Adresse – das Passwort nicht. Verwende am
-          besten keine echten Daten.
+          Dein Konto wird bei Supabase angelegt; das Passwort speichert nur
+          Supabase (verschlüsselt). Favoriten und Community-Inhalte liegen bis
+          zur nächsten Ausbaustufe noch in diesem Browser.
         </DemoNotice>
       </div>
     </>

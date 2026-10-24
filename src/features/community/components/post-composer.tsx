@@ -156,6 +156,7 @@ export function PostComposer({
                       <AnimeCover
                         anime={source}
                         variant={item.variant}
+                        preferArt
                         aspect="square"
                         className="size-20"
                       />
