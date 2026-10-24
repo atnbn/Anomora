@@ -3,9 +3,19 @@
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import type { Anime } from "@/features/anime/types";
+import { CatalogProvider } from "@/features/anime/catalog-provider";
 import { DemoProvider } from "@/features/demo/demo-provider";
 
-export function Providers({ children }: { children: React.ReactNode }) {
+export function Providers({
+  catalog,
+  fetchedAt,
+  children,
+}: {
+  catalog: Anime[] | null;
+  fetchedAt: number | null;
+  children: React.ReactNode;
+}) {
   return (
     <ThemeProvider
       attribute="class"
@@ -14,7 +24,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       disableTransitionOnChange
     >
       <TooltipProvider>
-        <DemoProvider>{children}</DemoProvider>
+        <CatalogProvider catalog={catalog} fetchedAt={fetchedAt}>
+          <DemoProvider>{children}</DemoProvider>
+        </CatalogProvider>
         <Toaster
           position="bottom-center"
           offset={{ bottom: 88 }}

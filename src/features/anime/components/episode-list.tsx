@@ -109,8 +109,10 @@ export function EpisodeList({ anime }: { anime: Anime }) {
 
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {formatCount(filtered.length)}{" "}
-        {filtered.length === 1 ? "Episode" : "Episoden"} · Titel und Termine
-        sind Demo-Daten
+        {filtered.length === 1 ? "Episode" : "Episoden"} ·{" "}
+        {anime.source === "anilist"
+          ? "Termine und Titel laut AniList, soweit bekannt"
+          : "Titel und Termine sind Demo-Daten"}
       </p>
 
       {filtered.length === 0 ? (

@@ -6,14 +6,16 @@ import { REFERENCE_NOW } from "@/data/demo/clock";
 /**
  * Uhr für relative Zeitangaben und Countdowns.
  *
- * Beim Server-Rendering und der Hydrierung gilt der feste Referenzzeitpunkt,
- * damit keine Abweichungen entstehen. Danach läuft die echte Uhr; Demo-Daten
- * werden um `shift` verschoben, damit sie relativ zur echten Zeit aktuell bleiben.
+ * Beim Server-Rendering und der Hydrierung gilt ein fester Zeitpunkt, damit
+ * keine Abweichungen entstehen: der Abrufzeitpunkt des gecachten
+ * AniList-Katalogs (`setServerNow`), sonst der Demo-Referenzzeitpunkt.
+ * Danach läuft die echte Uhr; Demo-Daten werden um `shift` verschoben,
+ * damit sie relativ zur echten Zeit aktuell bleiben.
  */
 
 export type Clock = { now: number; shift: number; live: boolean };
 
-const serverClock: Clock = { now: REFERENCE_NOW, shift: 0, live: false };
+let serverClock: Clock = { now: REFERENCE_NOW, shift: 0, live: false };
 let clock: Clock = serverClock;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -23,6 +25,13 @@ let sessionShift = 0;
 function tick() {
   clock = { now: Date.now(), shift: sessionShift, live: true };
   for (const listener of listeners) listener();
+}
+
+/** Setzt die Uhr für Server-Rendering und Hydrierung (deterministisch, ohne Date.now). */
+export function setServerNow(now: number) {
+  if (serverClock.now === now) return;
+  serverClock = { now, shift: now - REFERENCE_NOW, live: false };
+  if (!timer) clock = serverClock;
 }
 
 export function startClock() {

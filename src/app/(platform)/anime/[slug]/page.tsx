@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { DetailSkeleton } from "@/components/feedback/skeletons";
 import { AnimeDetailView } from "@/features/anime/components/anime-detail-view";
-import { getAllAnimeSlugs, getAnimeBySlug } from "@/lib/data/anime";
+import { getAllAnimeSlugs } from "@/lib/data/anime";
+import { getAnimeBySlug } from "@/lib/data/anime-server";
 
 export function generateStaticParams() {
   return getAllAnimeSlugs().map((slug) => ({ slug }));

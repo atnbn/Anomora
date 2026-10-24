@@ -19,8 +19,10 @@ import { PageContainer } from "@/components/layout/app-shell";
 import { Panel, Section } from "@/components/layout/section";
 import type { Anime } from "@/features/anime/types";
 import { AnimeCard } from "@/features/anime/components/anime-card";
-import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
-import { AnimeCover } from "@/features/anime/components/anime-cover";
+import {
+  AnimeBackdrop,
+  AnimeCover,
+} from "@/features/anime/components/anime-cover";
 import {
   Countdown,
   CountdownBadge,
@@ -64,15 +66,7 @@ function HeroFeature({ schedule }: { schedule: AnimeSchedule }) {
     >
       <div className="grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
         <div className="relative min-h-56 md:min-h-[19rem]">
-          {anime.art ? (
-            <AnimeArtwork
-              art={anime.art}
-              seed={`${anime.id}-hero`}
-              className="absolute inset-0 size-full"
-            />
-          ) : (
-            <div className="absolute inset-0 bg-muted" />
-          )}
+          <AnimeBackdrop anime={anime} seed={`${anime.id}-hero`} priority />
           <div
             aria-hidden="true"
             className="absolute inset-0 bg-linear-to-t from-black/80 via-black/25 to-transparent"
@@ -133,7 +127,9 @@ function HeroFeature({ schedule }: { schedule: AnimeSchedule }) {
               </div>
               <Countdown target={upcoming.airTime} />
               <p className="text-xs text-muted-foreground">
-                Termin aus Demo-Daten
+                {upcoming.live
+                  ? "Termin laut AniList"
+                  : "Termin aus Demo-Daten"}
               </p>
             </>
           ) : (
@@ -207,8 +203,16 @@ function UpcomingList({ schedules }: { schedules: AnimeSchedule[] }) {
 function DiscussionList({ schedules }: { schedules: AnimeSchedule[] }) {
   const counts = useEpisodeCommentCounts();
   const { watchedEpisodeIds, preferences } = useDemoState();
+  const { now } = useClock();
+  // Nur Folgen der letzten 30 Tage – bei abgeschlossenen Serien gibt es nichts Neues.
   const latest = schedules
-    .filter((entry) => entry.latest?.title)
+    .filter(
+      (entry) =>
+        entry.latest &&
+        (entry.latest.live
+          ? now - entry.latest.airTime < 30 * 86_400_000
+          : Boolean(entry.latest.title)),
+    )
     .toSorted((a, b) => b.latest!.airTime - a.latest!.airTime);
 
   return (
@@ -242,17 +246,20 @@ function DiscussionList({ schedules }: { schedules: AnimeSchedule[] }) {
                       {anime.title}
                     </p>
                     <h3 className="mt-0.5 text-[0.9375rem] leading-snug font-bold">
-                      Episode {episode!.number} – {episode!.title}
+                      Episode {episode!.number}
+                      {episode!.title && ` – ${episode!.title}`}
                     </h3>
-                    <SpoilerGuard
-                      active={preferences.spoilerProtection && !watched}
-                      reason="Inhalt"
-                      className="mt-1.5"
-                    >
-                      <p className="line-clamp-2 text-sm text-muted-foreground">
-                        {episode!.synopsis}
-                      </p>
-                    </SpoilerGuard>
+                    {episode!.synopsis && (
+                      <SpoilerGuard
+                        active={preferences.spoilerProtection && !watched}
+                        reason="Inhalt"
+                        className="mt-1.5"
+                      >
+                        <p className="line-clamp-2 text-sm text-muted-foreground">
+                          {episode!.synopsis}
+                        </p>
+                      </SpoilerGuard>
+                    )}
                     <div className="mt-auto flex flex-wrap items-center gap-2 pt-3">
                       <Link
                         href={episodeHref(anime.slug, episode!)}

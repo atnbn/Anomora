@@ -1,13 +1,15 @@
 import type { Anime } from "@/features/anime/types";
 
 /**
- * Demo-Katalog. Titel, Startjahr und Studio entsprechen den realen Serien;
- * Beschreibungen sind eigene Kurztexte. Episodenzahlen, Status und Bewertungen
- * sind Beispielwerte und werden durch die Anime-API ersetzt.
+ * Kuratierter Katalog. Deutsche Titel und Beschreibungen sind eigene Texte;
+ * Status, Episoden, Bewertung, Genres und Bilder kommen live von AniList
+ * (siehe `anilistId`). Die Werte hier dienen nur als Fallback, wenn AniList
+ * nicht erreichbar ist.
  */
 export const demoAnime: Anime[] = [
   {
     id: "a-one-piece",
+    anilistId: 21,
     slug: "one-piece",
     title: "One Piece",
     synopsis:
@@ -22,6 +24,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-detektiv-conan",
+    anilistId: 235,
     slug: "detektiv-conan",
     title: "Detektiv Conan",
     originalTitle: "Meitantei Conan",
@@ -37,6 +40,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-frieren",
+    anilistId: 154587,
     slug: "frieren",
     title: "Frieren – Nach dem Ende der Reise",
     originalTitle: "Sousou no Frieren",
@@ -52,6 +56,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-jujutsu-kaisen",
+    anilistId: 113415,
     slug: "jujutsu-kaisen",
     title: "Jujutsu Kaisen",
     synopsis:
@@ -66,6 +71,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-naruto-shippuden",
+    anilistId: 1735,
     slug: "naruto-shippuden",
     title: "Naruto Shippuden",
     synopsis:
@@ -80,6 +86,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-dragon-ball-z",
+    anilistId: 813,
     slug: "dragon-ball-z",
     title: "Dragon Ball Z",
     synopsis:
@@ -94,6 +101,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-demon-slayer",
+    anilistId: 101922,
     slug: "demon-slayer",
     title: "Demon Slayer",
     originalTitle: "Kimetsu no Yaiba",
@@ -109,6 +117,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-attack-on-titan",
+    anilistId: 16498,
     slug: "attack-on-titan",
     title: "Attack on Titan",
     originalTitle: "Shingeki no Kyojin",
@@ -124,6 +133,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-spy-x-family",
+    anilistId: 140960,
     slug: "spy-x-family",
     title: "Spy x Family",
     synopsis:
@@ -138,6 +148,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-solo-leveling",
+    anilistId: 151807,
     slug: "solo-leveling",
     title: "Solo Leveling",
     synopsis:
@@ -152,6 +163,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-haikyu",
+    anilistId: 20464,
     slug: "haikyu",
     title: "Haikyu!!",
     synopsis:
@@ -166,6 +178,7 @@ export const demoAnime: Anime[] = [
   },
   {
     id: "a-rezero",
+    anilistId: 21355,
     slug: "re-zero",
     title: "Re:ZERO – Starting Life in Another World",
     originalTitle: "Re:Zero kara Hajimeru Isekai Seikatsu",

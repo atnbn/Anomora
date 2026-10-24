@@ -18,6 +18,7 @@ import {
   useDemoState,
 } from "@/features/demo/store";
 import { startClock } from "@/features/demo/clock";
+import { loadRememberedAnime } from "@/features/anime/anime-cache";
 
 /** Lädt den lokalen Demo-Zustand, startet die Uhr und zeigt den Anmelde-Hinweis. */
 export function DemoProvider({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    // Erst gemerkte AniList-Daten laden, damit Favoriten beim Hydrieren auflösbar sind.
+    loadRememberedAnime();
     hydrateDemoState();
     startClock();
   }, []);

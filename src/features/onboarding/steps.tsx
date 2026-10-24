@@ -29,7 +29,8 @@ import {
   useAccent,
   type AccentId,
 } from "@/features/themes/accent";
-import { getAllGenres, listAnimeSync } from "@/lib/data/anime";
+import { GENRE_OPTIONS } from "@/features/anime/genres";
+import { listAnimeSync } from "@/lib/data/anime";
 import { isUsernameTaken } from "@/lib/data/users";
 import {
   BIO_MAX_LENGTH,
@@ -202,7 +203,22 @@ export function FavoritesStep({
   const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const genres = useMemo(() => getAllGenres().slice(0, 8), []);
+  const genres = useMemo(
+    () =>
+      GENRE_OPTIONS.filter((genre) =>
+        [
+          "Action",
+          "Abenteuer",
+          "Comedy",
+          "Drama",
+          "Fantasy",
+          "Mystery",
+          "Sport",
+          "Übernatürlich",
+        ].includes(genre),
+      ),
+    [],
+  );
   const results = listAnimeSync({
     search,
     genre: genre || undefined,

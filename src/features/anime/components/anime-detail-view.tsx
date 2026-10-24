@@ -16,11 +16,14 @@ import { PageContainer } from "@/components/layout/app-shell";
 import { PageTabs } from "@/components/layout/page-tabs";
 import { Panel, Section } from "@/components/layout/section";
 import type { Anime } from "@/features/anime/types";
-import { AnimeArtwork } from "@/features/anime/components/anime-artwork";
 import { AnimeCard } from "@/features/anime/components/anime-card";
-import { AnimeCover } from "@/features/anime/components/anime-cover";
+import {
+  AnimeBackdrop,
+  AnimeCover,
+} from "@/features/anime/components/anime-cover";
 import { Countdown } from "@/features/anime/components/countdown";
 import { EpisodeList } from "@/features/anime/components/episode-list";
+import { useRegisterAnime } from "@/features/anime/catalog-provider";
 import { FavoriteButton } from "@/features/anime/components/favorite-button";
 import { useSchedules } from "@/features/anime/episode-timeline";
 import { episodeHref, statusLabel } from "@/features/anime/labels";
@@ -49,7 +52,8 @@ function NextEpisodePanel({ anime }: { anime: Anime }) {
             <p className="mt-1 text-sm font-semibold">„{upcoming.title}“</p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            {formatDateTime(upcoming.airTime)} Uhr · Demo-Termin
+            {formatDateTime(upcoming.airTime)} Uhr ·{" "}
+            {upcoming.live ? "laut AniList" : "Demo-Termin"}
           </p>
           <Countdown target={upcoming.airTime} className="mt-3" />
         </>
@@ -101,6 +105,7 @@ function CommunityTab({ anime }: { anime: Anime }) {
 }
 
 export function AnimeDetailView({ anime }: { anime: Anime }) {
+  useRegisterAnime(anime);
   const posts = usePosts().filter((post) => post.animeId === anime.id);
   const similar = listAnimeSync({ sort: "score" })
     .filter(
@@ -123,15 +128,12 @@ export function AnimeDetailView({ anime }: { anime: Anime }) {
   return (
     <>
       <div className="relative isolate overflow-hidden border-b">
-        <div aria-hidden="true" className="absolute inset-0 -z-10 opacity-60">
-          {anime.art && (
-            <AnimeArtwork
-              art={anime.art}
-              seed={`${anime.id}-banner`}
-              className="size-full"
-            />
-          )}
-        </div>
+        <AnimeBackdrop
+          anime={anime}
+          seed={`${anime.id}-banner`}
+          priority
+          className="-z-10 opacity-60"
+        />
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 bg-linear-to-t from-background via-background/85 to-background/30"
@@ -226,9 +228,25 @@ export function AnimeDetailView({ anime }: { anime: Anime }) {
                 content: (
                   <div className="space-y-8">
                     <Section title="Handlung">
-                      <p className="max-w-[68ch] leading-relaxed">
-                        {anime.synopsis}
-                      </p>
+                      {anime.synopsis ? (
+                        <p
+                          lang={
+                            anime.synopsisLanguage === "en" ? "en" : undefined
+                          }
+                          className="max-w-[68ch] leading-relaxed whitespace-pre-line"
+                        >
+                          {anime.synopsis}
+                        </p>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          Für diese Serie ist noch keine Beschreibung verfügbar.
+                        </p>
+                      )}
+                      {anime.synopsisLanguage === "en" && anime.synopsis && (
+                        <p className="text-xs text-muted-foreground">
+                          Beschreibung von AniList, nur auf Englisch verfügbar.
+                        </p>
+                      )}
                     </Section>
                     <Section title="Details">
                       <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
@@ -248,8 +266,18 @@ export function AnimeDetailView({ anime }: { anime: Anime }) {
                         </dd>
                         <dt className="text-muted-foreground">Quelle</dt>
                         <dd className="font-medium">
-                          Demo-Katalog (Episoden, Status und Wertung sind
-                          Beispieldaten)
+                          {anime.source === "anilist" ? (
+                            <a
+                              href={anime.siteUrl ?? "https://anilist.co"}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-brand underline-offset-2 hover:underline"
+                            >
+                              AniList
+                            </a>
+                          ) : (
+                            "Demo-Katalog (AniList gerade nicht erreichbar)"
+                          )}
                         </dd>
                       </dl>
                     </Section>

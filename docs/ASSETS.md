@@ -1,29 +1,30 @@
-# Bilder und Demo-Inhalte
+# Bilder, Daten und Demo-Inhalte
 
-## Cover und Artworks
+## Anime-Daten und Bilder von AniList
 
-ANIMORA enthält **keine** Anime-Bilder, Screenshots oder Logos von Rechteinhabern. Die Bildrechte für eine produktive Nutzung sind nicht geklärt, deshalb werden alle Cover als austauschbare Demo-Assets erzeugt:
+Cover, Banner, Status, Episodenzahlen, Ausstrahlungstermine, Bewertungen, Genres und Studios kommen live von der öffentlichen [AniList-API](https://anilist.co) (siehe `docs/ANILIST.md`). Die Bilder werden direkt vom AniList-CDN (`s4.anilist.co`) geladen, nicht über unseren Server; die Quelle ist auf Entdecken, Detailseiten und der Startseite angegeben.
 
-| Asset                        | Herkunft                                                                                                                         |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Anime-Cover, Banner, Artwork | `src/features/anime/components/anime-artwork.tsx` erzeugt abstrakte SVG-Motive aus einer Farbpalette je Serie (`art` im Katalog) |
-| Bilder in Beiträgen          | dieselben generierten Artworks; Alt-Text beginnt immer mit „Demo-Artwork im Stil von …“                                          |
-| Avatare                      | Initiale auf Farbfläche (`avatarHue`), erzeugt in `user-avatar.tsx`                                                              |
-| Logo                         | eigene SVG-Bildmarke in `src/components/brand/logo.tsx`, angelehnt an das orange Kreis-Logo aus dem Video                        |
-| Schriften                    | Plus Jakarta Sans und Barlow Condensed über `next/font/google` (SIL Open Font License)                                           |
+Vor einem produktiven Einsatz klären:
 
-Die Motive stellen keine Figuren dar und sind keiner echten Szene zugeordnet. Der Serientitel wird auf Postern als Text eingeblendet, damit die Zuordnung eindeutig bleibt.
+1. [Nutzungsbedingungen von AniList](https://anilist.gitbook.io/anilist-apiv2-docs/docs/guide/terms-of-use) – die API ist für nicht-kommerzielle Nutzung frei; kommerzielle Nutzung braucht eine Absprache.
+2. Bildrechte der Cover liegen bei den Rechteinhabern; Anzeige mit Quellenangabe, keine Weiterverarbeitung.
 
-`Re:ZERO` hat absichtlich kein Artwork, um den Platzhalter für fehlende Cover zu zeigen.
+## Generierte Demo-Assets
 
-## Austausch gegen echte Cover
+| Asset               | Herkunft                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Bilder in Beiträgen | `src/features/anime/components/anime-artwork.tsx` erzeugt abstrakte SVG-Motive je Serie; Alt-Text beginnt mit „Demo-Artwork im Stil von …“ |
+| Fallback-Cover      | dieselben Motive, wenn AniList nicht erreichbar ist                                                                                        |
+| Avatare             | Initiale auf Farbfläche (`avatarHue`), erzeugt in `user-avatar.tsx`                                                                        |
+| Logo                | eigene SVG-Bildmarke in `src/components/brand/logo.tsx`, angelehnt an das orange Kreis-Logo aus dem Video                                  |
+| Schriften           | Plus Jakarta Sans und Barlow Condensed über `next/font/google` (SIL Open Font License)                                                     |
 
-`Anime.coverUrl` hat Vorrang vor dem generierten Artwork. Sobald der AniList-Adapter (`src/lib/anime-api/anilist.ts`) aktiv ist, liefert er `coverImage.extraLarge`. Vorher klären:
+Beitragsbilder nutzen bewusst nie die offiziellen Cover (`preferArt`), damit sie nicht wie Fotos von Nutzerinnen und Nutzern wirken. Die Motive stellen keine Figuren dar.
 
-1. Nutzungsbedingungen der API und Darstellung mit Quellenangabe
-2. `images.remotePatterns` in `next.config.ts` für den Bild-Host ergänzen und `unoptimized` in `anime-cover.tsx` entfernen
-3. Für Nutzer-Uploads (Avatare, Beitragsbilder): Supabase Storage mit Größenlimit, Moderation und RLS
+Für Nutzer-Uploads (Avatare, Beitragsbilder) fehlt noch Supabase Storage mit Größenlimit, Moderation und RLS.
 
 ## Inhaltliche Demo-Daten
 
-Titel, Startjahr und Studio der Serien entsprechen der Realität. Beschreibungen sind eigene Kurztexte. **Erfunden** sind: Episodentitel, Episodeninhalte, Ausstrahlungstermine, Episodenzahlen laufender Serien, Bewertungen, alle Nutzer, Beiträge und Kommentare. Die UI kennzeichnet Termine und Episoden als Demo-Daten.
+- **Kuratierte Serien** (`src/data/demo/anime.ts`): deutsche Titel und Beschreibungen sind eigene Texte, alles Messbare kommt von AniList. Die Demo-Werte dienen nur als Fallback.
+- **Andere Serien** (aus der Suche): Beschreibung stammt von AniList und ist nur auf Englisch verfügbar – das wird angezeigt.
+- **Erfunden** sind alle Nutzer, Beiträge, Kommentare, Meldungen und Sperren sowie die Episodentitel und -inhalte im Fallback-Modus. Beispiel-Diskussionen hängen an Demo-Episodennummern; zu echten aktuellen Folgen gibt es anfangs noch keine Kommentare.

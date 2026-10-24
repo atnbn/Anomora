@@ -92,6 +92,7 @@ function MediaGrid({ post }: { post: ResolvedPost }) {
           <AnimeCover
             anime={anime!}
             variant={media.variant}
+            preferArt
             aspect="fill"
             className="rounded-none"
           />
