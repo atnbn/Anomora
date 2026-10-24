@@ -1,29 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { useRef, useState } from "react";
 import {
   ChevronLeftIcon,
   CircleCheckIcon,
   KeyRoundIcon,
-  LinkIcon,
   Loader2Icon,
   MailCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DemoNotice,
+  FormAlert,
   PasswordField,
   TextField,
   focusFirstInvalid,
 } from "@/components/forms/fields";
+import { AuthHeading } from "@/features/auth/components/auth-shared";
 import {
-  AuthHeading,
-  simulateRequest,
-} from "@/features/auth/components/auth-shared";
-import { demoActions, useDemoState } from "@/features/demo/store";
+  authErrorMessage,
+  requestPasswordReset,
+  updatePassword,
+} from "@/features/auth/supabase-auth";
+import { getAccountEmail, useDemoState } from "@/features/demo/store";
 import {
   type FieldErrors,
   passwordChecks,
@@ -48,6 +49,7 @@ export function ForgotPasswordForm() {
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | undefined>();
+  const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sentTo, setSentTo] = useState<string | null>(null);
 
@@ -55,15 +57,20 @@ export function ForgotPasswordForm() {
     event.preventDefault();
     const nextError = validateEmail(email);
     setError(nextError);
+    setFormError(null);
     if (nextError) {
       focusFirstInvalid(formRef.current);
       return;
     }
     setPending(true);
-    await simulateRequest();
-    demoActions.requestPasswordReset(email);
-    setPending(false);
-    setSentTo(email.trim());
+    try {
+      await requestPasswordReset(email);
+      setSentTo(email.trim());
+    } catch (caught) {
+      setFormError(authErrorMessage(caught as Error));
+    } finally {
+      setPending(false);
+    }
   }
 
   if (sentTo) {
@@ -83,30 +90,19 @@ export function ForgotPasswordForm() {
                   {sentTo}
                 </span>{" "}
                 existiert, haben wir dir einen Link zum Zurücksetzen geschickt.
-                Er ist eine Stunde gültig.
+                Öffne ihn in diesem Browser.
               </>
             }
           />
         </div>
-        <div className="grid gap-3">
-          <Link
-            href="/reset-password?token=demo"
-            className={buttonVariants({ size: "lg" })}
-          >
-            <LinkIcon aria-hidden="true" />
-            Demo: Link aus der E-Mail öffnen
-          </Link>
-          <Button size="lg" variant="outline" onClick={() => setSentTo(null)}>
-            Andere E-Mail-Adresse verwenden
-          </Button>
-        </div>
-        <div className="mt-8">
-          <DemoNotice>
-            Demo-Modus: Es wird keine E-Mail verschickt. Aus Sicherheitsgründen
-            verrät die Meldung nicht, ob ein Konto existiert – so wie später in
-            Produktion.
-          </DemoNotice>
-        </div>
+        <Button
+          size="lg"
+          variant="outline"
+          className="w-full"
+          onClick={() => setSentTo(null)}
+        >
+          Andere E-Mail-Adresse verwenden
+        </Button>
       </>
     );
   }
@@ -125,6 +121,7 @@ export function ForgotPasswordForm() {
         className="grid gap-5"
         aria-busy={pending}
       >
+        {formError && <FormAlert>{formError}</FormAlert>}
         <TextField
           label="E-Mail-Adresse"
           type="email"
@@ -152,13 +149,17 @@ export function ForgotPasswordForm() {
 
 type ResetField = "password" | "confirm";
 
+/**
+ * Neues Passwort setzen. Der Link aus der E-Mail führt über /auth/confirm
+ * hierher und meldet dabei an – ohne diese Sitzung ist der Link ungültig.
+ */
 export function ResetPasswordForm() {
-  const token = useSearchParams().get("token");
-  const { passwordResetEmail, hydrated } = useDemoState();
+  const { session, hydrated, authReady } = useDemoState();
   const formRef = useRef<HTMLFormElement>(null);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [errors, setErrors] = useState<FieldErrors<ResetField>>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -171,21 +172,30 @@ export function ResetPasswordForm() {
         <div role="status">
           <AuthHeading
             title="Passwort geändert"
-            description="Du kannst dich jetzt mit deinem neuen Passwort anmelden. Andere Sitzungen wurden abgemeldet."
+            description="Dein neues Passwort gilt ab sofort. Du bist weiterhin angemeldet."
           />
         </div>
         <Link
-          href="/login"
+          href="/dashboard"
           className={buttonVariants({ size: "lg", className: "w-full" })}
         >
-          Zur Anmeldung
+          Zum Dashboard
         </Link>
       </>
     );
   }
 
-  // Ohne gültigen (Demo-)Link: abgelaufen oder bereits verwendet.
-  if (hydrated && (!token || !passwordResetEmail)) {
+  if (!hydrated || !authReady) {
+    return (
+      <div className="space-y-4" aria-busy="true" aria-label="Wird geladen">
+        <Skeleton className="size-14 rounded-full" />
+        <Skeleton className="h-8 w-3/4" />
+        <Skeleton className="h-11 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  if (session?.kind !== "supabase") {
     return (
       <>
         <span className="mb-6 flex size-14 items-center justify-center rounded-full bg-destructive/15 text-destructive">
@@ -194,7 +204,7 @@ export function ResetPasswordForm() {
         <div role="alert">
           <AuthHeading
             title="Link ungültig oder abgelaufen"
-            description="Links zum Zurücksetzen sind eine Stunde gültig und funktionieren nur einmal. Fordere einen neuen an."
+            description="Links zum Zurücksetzen sind nur begrenzt gültig und funktionieren nur einmal. Fordere einen neuen an."
           />
         </div>
         <Link
@@ -207,6 +217,8 @@ export function ResetPasswordForm() {
     );
   }
 
+  const email = getAccountEmail(session.userId);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const nextErrors: FieldErrors<ResetField> = {
@@ -214,17 +226,28 @@ export function ResetPasswordForm() {
       confirm: validatePasswordConfirmation(password, confirm),
     };
     setErrors(nextErrors);
+    setFormError(null);
     if (nextErrors.password || nextErrors.confirm) {
       focusFirstInvalid(formRef.current);
       return;
     }
     setPending(true);
-    await simulateRequest();
-    demoActions.completePasswordReset();
-    setPassword("");
-    setConfirm("");
-    setPending(false);
-    setDone(true);
+    try {
+      await updatePassword(password);
+      setPassword("");
+      setConfirm("");
+      setDone(true);
+    } catch (caught) {
+      const message = authErrorMessage(caught as Error);
+      if (
+        (caught as { code?: string }).code === "same_password" ||
+        (caught as { code?: string }).code === "weak_password"
+      )
+        setErrors({ password: message });
+      else setFormError(message);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -235,11 +258,11 @@ export function ResetPasswordForm() {
       <AuthHeading
         title="Neues Passwort festlegen"
         description={
-          passwordResetEmail ? (
+          email ? (
             <>
               Für{" "}
               <span className="font-semibold break-all text-foreground">
-                {passwordResetEmail}
+                {email}
               </span>
             </>
           ) : undefined
@@ -252,6 +275,7 @@ export function ResetPasswordForm() {
         className="grid gap-5"
         aria-busy={pending}
       >
+        {formError && <FormAlert>{formError}</FormAlert>}
         <PasswordField
           label="Neues Passwort"
           name="new-password"
@@ -284,11 +308,6 @@ export function ResetPasswordForm() {
           {pending ? "Wird gespeichert …" : "Passwort speichern"}
         </Button>
       </form>
-      <div className="mt-8">
-        <DemoNotice>
-          Demo-Modus: Das neue Passwort wird geprüft, aber nirgends gespeichert.
-        </DemoNotice>
-      </div>
     </>
   );
 }

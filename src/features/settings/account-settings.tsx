@@ -10,24 +10,21 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DemoNotice,
   FormAlert,
   PasswordField,
   TextField,
   focusFirstInvalid,
 } from "@/components/forms/fields";
-import { simulateRequest } from "@/features/auth/components/auth-shared";
+import {
+  authErrorMessage,
+  signOutOtherSessions,
+  updateEmail,
+  updatePassword,
+  verifyPassword,
+} from "@/features/auth/supabase-auth";
 import type { UserProfile } from "@/features/profiles/types";
 import {
-  demoActions,
   findActiveBan,
   getAccountEmail,
   resetDemoState,
@@ -47,19 +44,25 @@ import {
   validatePasswordConfirmation,
 } from "@/lib/validation/auth";
 
-function EmailForm({ isLocal, email }: { isLocal: boolean; email: string }) {
+function EmailForm({
+  isSupabase,
+  email,
+}: {
+  isSupabase: boolean;
+  email: string;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const [value, setValue] = useState(email);
   const [error, setError] = useState<string | undefined>();
   const [pending, setPending] = useState(false);
 
-  if (!isLocal) {
+  if (!isSupabase) {
     return (
       <div className="grid gap-3">
         <TextField label="E-Mail-Adresse" value={email} readOnly disabled />
         <DemoNotice>
-          Die Adresse der vorgegebenen Demo-Konten ist fest. In einem selbst
-          registrierten Konto kannst du sie ändern.
+          Die Adresse der vorgegebenen Demo-Konten ist fest. Mit einem eigenen
+          Konto kannst du sie ändern.
         </DemoNotice>
       </div>
     );
@@ -80,17 +83,18 @@ function EmailForm({ isLocal, email }: { isLocal: boolean; email: string }) {
         setError(nextError);
         if (nextError) return focusFirstInvalid(formRef.current);
         setPending(true);
-        await simulateRequest();
-        const result = demoActions.updateEmail(value);
-        setPending(false);
-        if (!result.ok) {
-          setError(result.message);
-          return focusFirstInvalid(formRef.current);
+        try {
+          await updateEmail(value);
+          toast.success("Bitte bestätige die Änderung", {
+            description:
+              "Wir haben dir Bestätigungslinks geschickt. Die neue Adresse gilt erst danach.",
+          });
+        } catch (caught) {
+          setError(authErrorMessage(caught as Error));
+          focusFirstInvalid(formRef.current);
+        } finally {
+          setPending(false);
         }
-        toast.success("E-Mail-Adresse geändert", {
-          description:
-            "Demo: In Produktion bestätigst du die neue Adresse per Link.",
-        });
       }}
     >
       <TextField
@@ -119,7 +123,7 @@ function EmailForm({ isLocal, email }: { isLocal: boolean; email: string }) {
 
 type PasswordFieldName = "current" | "next" | "confirm";
 
-function PasswordForm() {
+function PasswordForm({ email }: { email: string }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [values, setValues] = useState({ current: "", next: "", confirm: "" });
   const [errors, setErrors] = useState<FieldErrors<PasswordFieldName>>({});
@@ -152,13 +156,23 @@ function PasswordForm() {
         if (Object.values(nextErrors).some(Boolean))
           return focusFirstInvalid(formRef.current);
         setPending(true);
-        await simulateRequest();
-        setPending(false);
-        setValues({ current: "", next: "", confirm: "" });
-        toast.success("Passwort geändert", {
-          description:
-            "Demo: Das Passwort wurde geprüft, aber nicht gespeichert.",
-        });
+        try {
+          try {
+            await verifyPassword(email, values.current);
+          } catch {
+            setErrors({ current: "Das aktuelle Passwort ist nicht korrekt." });
+            focusFirstInvalid(formRef.current);
+            return;
+          }
+          await updatePassword(values.next);
+          setValues({ current: "", next: "", confirm: "" });
+          toast.success("Passwort geändert");
+        } catch (caught) {
+          setErrors({ next: authErrorMessage(caught as Error) });
+          focusFirstInvalid(formRef.current);
+        } finally {
+          setPending(false);
+        }
       }}
     >
       <PasswordField
@@ -198,119 +212,47 @@ function PasswordForm() {
   );
 }
 
-function DeleteAccount({
-  viewer,
-  isLocal,
-}: {
-  viewer: UserProfile;
-  isLocal: boolean;
-}) {
+function DeleteAccount({ isSupabase }: { isSupabase: boolean }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [confirmation, setConfirmation] = useState("");
-  const [error, setError] = useState<string | undefined>();
 
-  if (!isLocal) {
+  if (isSupabase) {
     return (
-      <div className="grid gap-3">
-        <p className="text-sm text-muted-foreground">
-          Vorgegebene Demo-Konten lassen sich nicht löschen. Du kannst aber alle
-          Demo-Daten in diesem Browser zurücksetzen.
-        </p>
-        <div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              resetDemoState();
-              toast.success("Demo-Daten zurückgesetzt");
-              router.push("/");
-            }}
-          >
-            Demo-Daten zurücksetzen
-          </Button>
-        </div>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Das Löschen eines Kontos braucht eine Server-Funktion mit
+        Administratorrechten. Sie kommt mit der Datenbank-Anbindung im nächsten
+        Ausbauschritt; bis dahin lässt sich das Konto nur im Supabase-Dashboard
+        entfernen.
+      </p>
     );
   }
 
   return (
-    <>
+    <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
-        Dein Profil, deine Favoriten, Beiträge und Kommentare werden dauerhaft
-        gelöscht. Das kann nicht rückgängig gemacht werden.
+        Vorgegebene Demo-Konten lassen sich nicht löschen. Du kannst aber alle
+        Demo-Daten in diesem Browser zurücksetzen.
       </p>
-      <Button variant="danger" className="mt-4" onClick={() => setOpen(true)}>
-        Konto löschen
-      </Button>
-      <Dialog
-        open={open}
-        onOpenChange={(next) => {
-          setOpen(next);
-          if (!next) {
-            setConfirmation("");
-            setError(undefined);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <form
-            noValidate
-            className="grid gap-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (confirmation.trim() !== viewer.username) {
-                setError(`Gib zur Bestätigung genau „${viewer.username}“ ein.`);
-                return;
-              }
-              demoActions.deleteAccount();
-              toast.success("Dein Konto wurde gelöscht");
-              router.push("/");
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="text-lg font-bold">
-                Konto endgültig löschen?
-              </DialogTitle>
-              <DialogDescription>
-                Alle deine Daten werden entfernt. Gib zur Bestätigung deinen
-                Nutzernamen ein.
-              </DialogDescription>
-            </DialogHeader>
-            <TextField
-              label={`Nutzername (${viewer.username})`}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              value={confirmation}
-              onChange={(event) => {
-                setConfirmation(event.target.value);
-                setError(undefined);
-              }}
-              error={error}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                Abbrechen
-              </Button>
-              <Button type="submit" variant="danger">
-                Endgültig löschen
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+      <div>
+        <Button
+          variant="outline"
+          onClick={() => {
+            resetDemoState();
+            toast.success("Demo-Daten zurückgesetzt");
+            router.push("/");
+          }}
+        >
+          Demo-Daten zurücksetzen
+        </Button>
+      </div>
+    </div>
   );
 }
 
 function AccountContent({ viewer }: { viewer: UserProfile }) {
-  const { accounts, bans } = useDemoState();
+  const { session, bans } = useDemoState();
   const clock = useClock();
-  const isLocal = accounts.some((account) => account.id === viewer.id);
+  const isSupabase = session?.kind === "supabase";
+  const [signingOut, setSigningOut] = useState(false);
   const email = getAccountEmail(viewer.id) ?? "";
   const ban = findActiveBan(bans, viewer.id, clock.now, clock.shift);
 
@@ -329,13 +271,20 @@ function AccountContent({ viewer }: { viewer: UserProfile }) {
         title="E-Mail-Adresse"
         description="An diese Adresse schicken wir Bestätigungen und Links zum Zurücksetzen."
       >
-        <EmailForm key={email} isLocal={isLocal} email={email} />
+        <EmailForm key={email} isSupabase={isSupabase} email={email} />
       </SettingsSection>
       <SettingsSection
         title="Passwort ändern"
         description="Verwende ein Passwort, das du nirgendwo anders nutzt."
       >
-        <PasswordForm />
+        {isSupabase ? (
+          <PasswordForm email={email} />
+        ) : (
+          <DemoNotice>
+            Demo-Konten haben kein Passwort. Mit einem eigenen Konto kannst du
+            es hier ändern.
+          </DemoNotice>
+        )}
       </SettingsSection>
       <SettingsSection
         title="Angemeldete Geräte"
@@ -356,17 +305,33 @@ function AccountContent({ viewer }: { viewer: UserProfile }) {
             </span>
           </li>
         </ul>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() =>
-            toast.success("Auf allen anderen Geräten abgemeldet", {
-              description: "Demo: Es gibt keine weiteren Sitzungen.",
-            })
-          }
-        >
-          Auf allen anderen Geräten abmelden
-        </Button>
+        {isSupabase ? (
+          <Button
+            variant="outline"
+            className="mt-4"
+            disabled={signingOut}
+            onClick={async () => {
+              setSigningOut(true);
+              try {
+                await signOutOtherSessions();
+                toast.success("Auf allen anderen Geräten abgemeldet");
+              } catch (caught) {
+                toast.error(authErrorMessage(caught as Error));
+              } finally {
+                setSigningOut(false);
+              }
+            }}
+          >
+            {signingOut && (
+              <Loader2Icon className="animate-spin" aria-hidden="true" />
+            )}
+            Auf allen anderen Geräten abmelden
+          </Button>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Demo-Konten haben keine Sitzungen auf anderen Geräten.
+          </p>
+        )}
       </SettingsSection>
       <SettingsSection title="Konto löschen" tone="danger">
         <div className="flex items-start gap-3">
@@ -375,7 +340,7 @@ function AccountContent({ viewer }: { viewer: UserProfile }) {
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <DeleteAccount viewer={viewer} isLocal={isLocal} />
+            <DeleteAccount isSupabase={isSupabase} />
           </div>
         </div>
       </SettingsSection>

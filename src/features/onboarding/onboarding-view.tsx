@@ -22,7 +22,11 @@ import {
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import { profileHref } from "@/features/profiles/components/user-name";
 import { useViewer } from "@/features/profiles/hooks";
-import { demoActions, getAccountStatus } from "@/features/demo/store";
+import { getAccountStatus } from "@/features/demo/store";
+import {
+  authErrorMessage,
+  finishOnboarding,
+} from "@/features/auth/supabase-auth";
 import { getAnimeByIdSync } from "@/lib/data/anime";
 import { cn } from "@/lib/utils";
 
@@ -116,10 +120,14 @@ export function OnboardingView() {
     .filter((anime) => anime !== undefined);
   const next = () => goTo(index + 1);
 
-  function finish() {
-    demoActions.completeOnboarding();
-    toast.success("Willkommen bei ANIMORA!");
-    router.push("/dashboard");
+  async function finish(target: string) {
+    try {
+      await finishOnboarding();
+      toast.success("Willkommen bei ANIMORA!");
+      router.push(target);
+    } catch (error) {
+      toast.error(authErrorMessage(error as Error));
+    }
   }
 
   return (
@@ -231,12 +239,15 @@ export function OnboardingView() {
             <>
               <Link
                 href={profileHref(viewer)}
-                onClick={() => demoActions.completeOnboarding()}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void finish(profileHref(viewer));
+                }}
                 className={buttonVariants({ variant: "outline", size: "lg" })}
               >
                 Profil ansehen
               </Link>
-              <Button size="lg" onClick={finish}>
+              <Button size="lg" onClick={() => finish("/dashboard")}>
                 Zum Dashboard
               </Button>
             </>

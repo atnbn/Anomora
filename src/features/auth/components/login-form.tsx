@@ -17,19 +17,15 @@ import {
   AuthHeading,
   SignedInNotice,
   routeAfterSignIn,
-  simulateRequest,
 } from "@/features/auth/components/auth-shared";
 import {
-  demoActions,
-  findAccountByEmail,
-  getAccountStatus,
-} from "@/features/demo/store";
+  authErrorMessage,
+  isAuthConfigured,
+  signIn,
+} from "@/features/auth/supabase-auth";
+import { demoActions, getAccountStatus } from "@/features/demo/store";
 import { useViewer } from "@/features/profiles/hooks";
-import {
-  DEMO_LOGIN_EMAIL,
-  DEMO_MOD_EMAIL,
-  DEMO_VIEWER_ID,
-} from "@/data/demo/users";
+import { DEMO_VIEWER_ID } from "@/data/demo/users";
 import { type FieldErrors, validateEmail } from "@/lib/validation/auth";
 
 type Field = "email" | "password";
@@ -68,18 +64,25 @@ export function LoginForm() {
     }
 
     setPending(true);
-    await simulateRequest();
-    const account = findAccountByEmail(email);
-    if (!account) {
+    try {
+      const account = await signIn(email, password);
+      setPassword("");
+      toast.success("Willkommen zurück!");
+      router.push(
+        routeAfterSignIn(
+          {
+            userId: account.id,
+            emailVerified: account.emailVerified,
+            onboardingComplete: account.onboardingComplete,
+          },
+          next,
+        ),
+      );
+    } catch (error) {
       setPending(false);
-      // Bewusst unspezifisch: verrät nicht, ob ein Konto existiert.
-      setFormError("E-Mail-Adresse oder Passwort ist nicht korrekt.");
-      return;
+      // Supabase verrät bewusst nicht, ob es das Konto gibt.
+      setFormError(authErrorMessage(error as Error));
     }
-    setPassword("");
-    demoActions.signIn(account.userId);
-    toast.success("Willkommen zurück!");
-    router.push(routeAfterSignIn(account, next));
   }
 
   function continueWithDemo() {
@@ -102,6 +105,12 @@ export function LoginForm() {
         className="grid gap-5"
         aria-busy={pending}
       >
+        {!isAuthConfigured() && (
+          <FormAlert>
+            Die Anmeldung ist nicht konfiguriert (Supabase-Umgebungsvariablen
+            fehlen). Du kannst ANIMORA mit dem Demo-Konto ansehen.
+          </FormAlert>
+        )}
         {formError && <FormAlert>{formError}</FormAlert>}
         <TextField
           label="E-Mail-Adresse"
@@ -172,16 +181,9 @@ export function LoginForm() {
 
       <div className="mt-8">
         <DemoNotice>
-          Demo-Modus: Es gibt noch keine echte Anmeldung, Passwörter werden
-          weder geprüft noch gespeichert. Demo-Zugang:{" "}
-          <span className="font-semibold text-foreground">
-            {DEMO_LOGIN_EMAIL}
-          </span>
-          , für die Moderation{" "}
-          <span className="font-semibold text-foreground">
-            {DEMO_MOD_EMAIL}
-          </span>
-          , oder eine E-Mail, mit der du dich hier registriert hast.
+          Die Anmeldung läuft über Supabase. „Mit Demo-Konto ansehen“ öffnet
+          dagegen ein vorgegebenes Beispielkonto ohne Anmeldung, dessen Daten
+          nur in diesem Browser liegen.
         </DemoNotice>
       </div>
     </>
