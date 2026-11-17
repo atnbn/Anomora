@@ -14,12 +14,13 @@
     "typecheck": "next typegen && tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "npm run format:check && npm run lint && npm run typecheck",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
     "env:check": "node scripts/check-env.mjs",
     "build:preview": "npm run env:check && npm run check && npm run build",
     "supabase:check": "node scripts/check-supabase.mjs",
     "supabase:login": "supabase login",
-    "supabase:link:dev": "supabase link --project-ref ybtcgpqartsuelpllbzt"
+    "supabase:link:dev": "supabase link --project-ref ybtcgpqartsuelpllbzt",
+    "test": "vitest run"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -41,7 +42,7 @@
     "@emnapi/core": "1.11.3",
     "@emnapi/runtime": "1.11.3",
     "@tailwindcss/turbopack": "^4",
-    "@types/node": "^20",
+    "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
@@ -50,6 +51,7 @@
     "prettier": "^3.9.10",
     "supabase": "2.122.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.1.0"
   }
 }
