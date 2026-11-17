@@ -1,11 +1,12 @@
 # Demo-Modus
 
-Anmeldung, Profile und Anime-Daten sind echt (siehe [README](../README.md#stand)). Alle übrigen Community-Funktionen laufen bis zur Umstellung auf Supabase-Tabellen als Demo lokal im Browser. Sie liegen in `localStorage` unter dem Schlüssel `animora.demo.v1`. Dort werden keine Passwörter oder Geheimnisse gespeichert.
+Anmeldung, Profile, Anime-Daten und Beiträge von Supabase-Konten sind echt (siehe [README](../README.md#stand)). Alle übrigen Community-Funktionen laufen bis zur Umstellung auf Supabase-Tabellen als Demo lokal im Browser. Sie liegen in `localStorage` unter dem Schlüssel `animora.demo.v1`. Dort werden keine Passwörter oder Geheimnisse gespeichert.
 
 ## Was simuliert ist
 
 - Favoriten und „Gesehen“-Status je Konto
-- Beiträge erstellen, bearbeiten und löschen; Likes, Speichern, Kommentare und Antworten
+- Beiträge erstellen, bearbeiten und löschen mit dem Demo-Konto (Supabase-Konten schreiben in die Tabelle `posts`); die Beispiel-Beiträge tragen ein „Demo“-Abzeichen
+- Likes, Speichern, Kommentare und Antworten – auch auf echte Beiträge, aber nur in diesem Browser
 - Folgen und Entfolgen, Nutzer blockieren, Inhalte melden
 - Moderation: Rollen, Meldungen, Sperren, entfernte Inhalte und Protokoll liegen im selben lokalen Speicher. Es gibt noch keine serverseitige Rechteprüfung. Gesperrte Konten können nichts veröffentlichen oder kommentieren.
 - Beim Demo-Konto **StrawHatMax**: Sitzung, Passwortänderung (wird nur geprüft) und „Andere Geräte abmelden“ (Attrappe)

@@ -24,6 +24,8 @@ export type Post = {
   baseLikeCount: number;
   /** Demo-Beiträge werden mit der Uhr verschoben, damit sie aktuell wirken. */
   seeded?: boolean;
+  /** `supabase`: liegt in der Tabelle `posts`. Fehlt bei Demo-Beiträgen. */
+  source?: "demo" | "supabase";
 };
 
 export type Comment = {

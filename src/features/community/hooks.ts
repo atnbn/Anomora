@@ -5,6 +5,7 @@ import type { Comment, FeedFilter, Post } from "@/features/community/types";
 import { demoComments, demoPosts } from "@/data/demo/posts";
 import { useDemoState } from "@/features/demo/store";
 import { resolveTime, useClock } from "@/features/demo/clock";
+import { useRemotePosts } from "@/features/community/posts-supabase";
 
 export type ResolvedPost = Post & {
   time: number;
@@ -22,11 +23,15 @@ export type ResolvedComment = Comment & {
   isOwn: boolean;
 };
 
-/** Alle sichtbaren Beiträge: Demo-Daten + eigene, ohne gelöschte und blockierte Autoren. */
+/**
+ * Alle sichtbaren Beiträge: echte aus der Tabelle `posts`, Demo-Daten und
+ * lokal erstellte, ohne gelöschte, entfernte und blockierte Autoren.
+ */
 export function usePosts(): ResolvedPost[] {
   const demo = useDemoState();
   const clock = useClock();
   const comments = useAllComments();
+  const remote = useRemotePosts();
 
   return useMemo(() => {
     const commentCounts = new Map<string, number>();
@@ -39,7 +44,7 @@ export function usePosts(): ResolvedPost[] {
       }
     }
 
-    return [...demo.createdPosts, ...demoPosts]
+    return [...remote.posts, ...demo.createdPosts, ...demoPosts]
       .filter(
         (post) =>
           !demo.deletedPostIds.includes(post.id) &&
@@ -61,7 +66,7 @@ export function usePosts(): ResolvedPost[] {
         };
       })
       .toSorted((a, b) => b.time - a.time);
-  }, [demo, clock, comments]);
+  }, [demo, clock, comments, remote]);
 }
 
 export function filterPosts(

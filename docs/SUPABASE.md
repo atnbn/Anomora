@@ -72,7 +72,8 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 
 - Die Sitzung liegt in Cookies; der Proxy erneuert sie. Seiten lesen die Sitzung im Browser, damit sie statisch vorgerendert bleiben.
 - Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) liegen in der Tabelle **`profiles`** (Schritt 2, siehe [specs/profiles.md](specs/profiles.md)). Ist die Migration noch nicht angewendet, nutzt die App weiter die **Nutzer-Metadaten**.
-- Favoriten, Beiträge, Kommentare und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
+- Beiträge von Supabase-Konten liegen in der Tabelle **`posts`** (Schritt 3, siehe [specs/posts.md](specs/posts.md)). Ist die Migration noch nicht angewendet, landen sie wie bisher im Browser.
+- Favoriten, Likes, Kommentare und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
 - Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt in einem späteren Schritt.
 - Die Demo-Konten (`Demo ansehen`) bleiben bestehen und laufen ohne Supabase.
 
@@ -89,6 +90,27 @@ Die Migration `supabase/migrations/20261117120000_create_profiles.sql` legt an:
 | Übernahme                      | Bereits registrierte Konten bekommen beim Anwenden einmalig ein Profil                                      |
 
 Die App spricht die Tabelle über `src/features/auth/supabase-auth.ts` an; reine Umwandlungen liegen in `src/features/profiles/profile-row.ts`. Die Migration wird nicht automatisch angewendet (siehe unten).
+
+## Beitragstabelle
+
+Die Migration `supabase/migrations/20261117140000_create_posts.sql` legt an:
+
+| Teil                          | Aufgabe                                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| Tabelle `posts`               | Beiträge mit Text, Kategorie, optionalem Anime und Spoiler-Hinweis; Autor verweist auf `profiles` |
+| Constraints                   | Entsprechen `src/lib/validation/posts.ts` (3–1000 Zeichen, Kategorien, Format der Anime-ID)       |
+| RLS und Spaltenrechte         | Alle dürfen lesen; angemeldete Nutzer legen nur im eigenen Namen an und ändern/löschen nur eigene |
+| Trigger `posts_set_edited_at` | Setzt `edited_at`, sobald Text oder Spoiler-Hinweis geändert werden                               |
+| Indizes                       | Neueste Beiträge für Feed, Profil und Anime-Seite                                                 |
+
+| Datei                                        | Aufgabe                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------- |
+| `src/features/community/posts-supabase.ts`   | Lädt die neuesten Beiträge mit Autor, einzelne Beiträge, legt an, ändert, löscht |
+| `src/features/community/post-actions.ts`     | Entscheidet zwischen Tabelle (Supabase-Konto) und Demo-Store (Demo-Konto)        |
+| `src/features/community/post-row.ts`         | Reine Umwandlungen Zeile ↔ Beitrag und deutsche Fehlermeldungen                  |
+| `src/features/profiles/profiles-supabase.ts` | Lädt Profile anderer Nutzer für `/u/[username]`                                  |
+
+Nach dem Anwenden die RLS-Checkliste in [specs/posts.md](specs/posts.md#manuelle-rls-prüfung-nach-dem-anwenden) mit zwei Testkonten durchgehen.
 
 Der Publishable Key ist für den Browser vorgesehen und ist kein Admin-Schlüssel. Datenzugriff wird über Datenbankberechtigungen und **Row Level Security (RLS)** geregelt. Lege neue Tabellen zusammen mit passenden RLS-Regeln an. Ein Secret- oder Service-Role-Key gehört niemals in `NEXT_PUBLIC_*`.
 
