@@ -1,6 +1,6 @@
 # Supabase für die Cloud-Entwicklung
 
-Die Next.js-App ist für das bereitgestellte Projekt `ybtcgpqartsuelpllbzt` vorbereitet. Verwende dieses Projekt ausschließlich für Entwicklung und Testdaten. Eine spätere Produktionsumgebung erhält ein eigenes Supabase-Projekt und eigene Umgebungsvariablen.
+Die Next.js-App nutzt das Supabase-Projekt `pkjhfyjyoygmoyqmmwng`: lokal über `.env.local` und auf der Live-Seite über die Umgebungsvariablen in Vercel. Ein getrenntes Projekt für Entwicklung gibt es derzeit nicht. Testdaten, Testkonten und angewendete Migrationen landen deshalb in derselben Datenbank wie die Live-Seite. Ein eigenes Entwicklungsprojekt mit eigenen Umgebungsvariablen kann später ergänzt werden.
 
 ## Starten und Verbindung prüfen
 
@@ -53,7 +53,7 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 
 ## Cloud-Projekt konfigurieren
 
-Öffne dein [Supabase-Projekt](https://supabase.com/dashboard/project/ybtcgpqartsuelpllbzt). Diese Cloud-Einstellungen ändern die lokalen Dateien nicht – sie müssen im Dashboard gesetzt werden:
+Öffne dein [Supabase-Projekt](https://supabase.com/dashboard/project/pkjhfyjyoygmoyqmmwng). Diese Cloud-Einstellungen ändern die lokalen Dateien nicht – sie müssen im Dashboard gesetzt werden:
 
 1. **Authentication → URL Configuration**
    - Site URL: `http://localhost:3000` (später die Produktions-URL)
@@ -123,7 +123,7 @@ npm.cmd run supabase:login
 npm.cmd run supabase:link:dev
 ```
 
-Die zweite Zeile verknüpft diesen Ordner ausdrücklich mit der bereitgestellten Entwicklungs-Projekt-ID. Falls die CLI nach einem Datenbankpasswort fragt, gib es ausschließlich im eigenen Terminal ein.
+Die zweite Zeile verknüpft diesen Ordner ausdrücklich mit dem Projekt `pkjhfyjyoygmoyqmmwng`, das auch die Live-Seite nutzt. Falls die CLI nach einem Datenbankpasswort fragt, gib es ausschließlich im eigenen Terminal ein.
 
 Eine neue Migration kannst du mit `npx.cmd supabase migration new DEIN_NAME` erzeugen. Vor einem `db push` immer das verknüpfte Projekt und den SQL-Inhalt prüfen. Welche Migrationen in der Cloud schon angewendet sind, zeigt `npx.cmd supabase migration list`; anwenden mit `npx.cmd supabase db push`. Für die reine Cloud-Anbindung brauchst du Docker nicht.
 

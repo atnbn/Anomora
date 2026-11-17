@@ -101,7 +101,7 @@ Bekannte Lücke bis zum Moderations-Schritt: Gesperrte Konten hält nur die Ober
 
 ## Anwenden in der Cloud
 
-Die Migration wird nicht automatisch angewendet, sondern erst nach Review und deinem OK. **Vorher klären:** `supabase:link:dev` in `package.json` und `docs/SUPABASE.md` nennen `ybtcgpqartsuelpllbzt`, App und `.env.local` nutzen aber `pkjhfyjyoygmoyqmmwng`. Das Skript wird erst nach dieser Klärung (und ggf. Korrektur in einem eigenen kleinen PR) ausgeführt. Danach: verknüpftes Projekt prüfen, `npx.cmd supabase migration list` (lesend), SQL prüfen, `npx.cmd supabase db push`.
+Die Migration wird nicht automatisch angewendet, sondern erst nach Review und deinem OK. `supabase:link:dev` zeigt inzwischen auf `pkjhfyjyoygmoyqmmwng`, dasselbe Projekt wie App, `.env.local` und Live-Seite (vorher stand dort fälschlich `ybtcgpqartsuelpllbzt`). Weil es kein getrenntes Entwicklungsprojekt gibt, wirkt `db push` direkt auf die Live-Seite. Ablauf: `npm.cmd run supabase:link:dev`, verknüpftes Projekt prüfen, `npx.cmd supabase migration list` (lesend), SQL prüfen, `npx.cmd supabase db push`.
 
 ## Entscheidungen (bestätigt am 17.11.2026)
 

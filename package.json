@@ -19,7 +19,7 @@
     "build:preview": "npm run env:check && npm run check && npm run build",
     "supabase:check": "node scripts/check-supabase.mjs",
     "supabase:login": "supabase login",
-    "supabase:link:dev": "supabase link --project-ref ybtcgpqartsuelpllbzt",
+    "supabase:link:dev": "supabase link --project-ref pkjhfyjyoygmoyqmmwng",
     "test": "vitest run"
   },
   "dependencies": {
