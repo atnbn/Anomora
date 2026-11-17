@@ -11,7 +11,7 @@ const missing = required.filter((name) => !process.env[name]?.trim());
 if (missing.length > 0) {
   console.error(`Fehlende Umgebungsvariablen: ${missing.join(", ")}`);
   console.error(
-    "Trage sie lokal in .env.local oder in Vercel unter Preview ein.",
+    "Trage sie lokal in .env.local oder in Vercel unter Preview und Production ein.",
   );
   process.exit(1);
 }
