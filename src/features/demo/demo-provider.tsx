@@ -20,6 +20,7 @@ import {
 import { startClock } from "@/features/demo/clock";
 import { loadRememberedAnime } from "@/features/anime/anime-cache";
 import { startAuthSync } from "@/features/auth/supabase-auth";
+import { loadRemotePosts } from "@/features/community/posts-supabase";
 
 /** Lädt den lokalen Demo-Zustand, startet die Uhr und zeigt den Anmelde-Hinweis. */
 export function DemoProvider({ children }: { children: React.ReactNode }) {
@@ -37,6 +38,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     loadRememberedAnime();
     hydrateDemoState();
     startClock();
+    // Echte Beiträge sind öffentlich lesbar und hängen nicht an der Sitzung.
+    void loadRemotePosts();
     // Supabase-Sitzung (Cookies) in den Store spiegeln und auf Änderungen hören.
     return startAuthSync();
   }, []);

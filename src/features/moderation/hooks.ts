@@ -10,6 +10,7 @@ import type {
 import { findActiveBan, useDemoState } from "@/features/demo/store";
 import { resolveTime, useClock } from "@/features/demo/clock";
 import { demoComments, demoPosts } from "@/data/demo/posts";
+import { useRemotePosts } from "@/features/community/posts-supabase";
 import { getAnimeByIdSync, getEpisodeByIdSync } from "@/lib/data/anime";
 import { getUserByIdSync } from "@/lib/data/users";
 import { episodeHref } from "@/features/anime/labels";
@@ -40,8 +41,9 @@ export type ResolvedReport = DemoReport & {
 /** Inhalt hinter einer Meldung, auch wenn er entfernt oder gelöscht wurde. */
 export function useTargetResolver() {
   const demo = useDemoState();
+  const remote = useRemotePosts();
   return useMemo(() => {
-    const posts = [...demo.createdPosts, ...demoPosts];
+    const posts = [...remote.posts, ...demo.createdPosts, ...demoPosts];
     const comments = [...demo.createdComments, ...demoComments];
 
     return (type: DemoReport["targetType"], id: string): ReportTarget => {
@@ -109,7 +111,7 @@ export function useTargetResolver() {
         deleted: !user,
       };
     };
-  }, [demo]);
+  }, [demo, remote]);
 }
 
 export function useResolvedReports(): ResolvedReport[] {

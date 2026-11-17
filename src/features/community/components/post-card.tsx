@@ -32,6 +32,9 @@ import {
   ReportDialog,
 } from "@/features/community/components/moderation-dialogs";
 import { EditPostDialog } from "@/features/community/components/edit-post-dialog";
+import { removeOwnPost } from "@/features/community/post-actions";
+import { postErrorMessage } from "@/features/community/post-row";
+import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import {
   profileHref,
@@ -170,6 +173,15 @@ export function PostCard({
             )}
             <span aria-hidden="true">·</span>
             <span>{categoryLabel[post.category]}</span>
+            {post.source !== "supabase" && (
+              <Badge
+                variant="outline"
+                className="h-5 px-1.5 text-[0.6875rem] font-semibold text-muted-foreground"
+                title="Beispiel- oder lokaler Beitrag, nur in diesem Browser"
+              >
+                Demo
+              </Badge>
+            )}
           </p>
         </div>
 
@@ -349,8 +361,10 @@ export function PostCard({
         description="Der Beitrag und seine Kommentare werden entfernt. Das kann nicht rückgängig gemacht werden."
         confirmLabel="Löschen"
         onConfirm={() => {
-          demoActions.deletePost(post.id);
-          toast.success("Beitrag gelöscht");
+          removeOwnPost(post).then(
+            () => toast.success("Beitrag gelöscht"),
+            (error: Error) => toast.error(postErrorMessage(error)),
+          );
         }}
       />
       <ConfirmDialog

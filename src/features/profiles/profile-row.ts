@@ -5,6 +5,8 @@
  * Datenbank testbar sind.
  */
 
+import type { UserProfile } from "@/features/profiles/types";
+
 export type ProfileRow = {
   id: string;
   username: string;
@@ -62,6 +64,38 @@ export function rowToAccountFields(row: ProfileRow): ProfileAccountFields {
     bio: row.bio ?? undefined,
     avatarHue: row.avatar_hue,
     onboardingComplete: row.onboarding_complete,
+  };
+}
+
+/** Öffentliche Spalten für Profile anderer Nutzer (z. B. Autoren von Beiträgen). */
+export type PublicProfileRow = Pick<
+  ProfileRow,
+  | "id"
+  | "username"
+  | "display_name"
+  | "bio"
+  | "avatar_hue"
+  | "onboarding_complete"
+  | "role"
+  | "created_at"
+>;
+
+export const PUBLIC_PROFILE_COLUMNS =
+  "id, username, display_name, bio, avatar_hue, onboarding_complete, role, created_at";
+
+/** Profilzeile als `UserProfile` für Karten, Namen und Profilseiten. */
+export function rowToUserProfile(row: PublicProfileRow): UserProfile {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    bio: row.bio ?? undefined,
+    avatarHue: row.avatar_hue,
+    role: row.role === "moderator" ? "moderator" : "member",
+    badges: [],
+    favoriteAnimeIds: [],
+    joinedAt: row.created_at,
+    profileComplete: row.onboarding_complete,
   };
 }
 

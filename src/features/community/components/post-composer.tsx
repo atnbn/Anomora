@@ -9,11 +9,19 @@ import type { Post, PostCategory, PostMedia } from "@/features/community/types";
 import { AnimeCover } from "@/features/anime/components/anime-cover";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import { useViewer } from "@/features/profiles/hooks";
-import { demoActions, requireCanPost } from "@/features/demo/store";
+import { requireCanPost, useDemoState } from "@/features/demo/store";
+import { publishPost } from "@/features/community/post-actions";
+import { postErrorMessage } from "@/features/community/post-row";
+import { useRemotePosts } from "@/features/community/posts-supabase";
 import { getAnimeByIdSync, listAnimeSync } from "@/lib/data/anime";
+import {
+  POST_MAX_LENGTH,
+  postLength,
+  validatePostBody,
+} from "@/lib/validation/posts";
 import { cn } from "@/lib/utils";
 
-export const MAX_POST_LENGTH = 1000;
+export const MAX_POST_LENGTH = POST_MAX_LENGTH;
 
 export const categoryLabel: Record<PostCategory, string> = {
   discussion: "Diskussion",
@@ -47,8 +55,14 @@ export function PostComposer({
   const [media, setMedia] = useState<PostMedia[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(Boolean(autoFocus));
+  const [pending, setPending] = useState(false);
+  const { session } = useDemoState();
+  const remote = useRemotePosts();
+  // Echte Beiträge haben noch keine Bilder (Storage folgt), Demo-Artworks nur lokal.
+  const toDatabase =
+    session?.kind === "supabase" && remote.status !== "unavailable";
 
-  const remaining = MAX_POST_LENGTH - body.length;
+  const remaining = MAX_POST_LENGTH - postLength(body);
   const anime = animeId ? getAnimeByIdSync(animeId) : undefined;
 
   function addArtwork() {
@@ -71,28 +85,35 @@ export function PostComposer({
     ]);
   }
 
-  function submit(event: React.FormEvent) {
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (pending) return;
     if (!requireCanPost("Melde dich an, um Beiträge zu veröffentlichen."))
       return;
-    const text = body.trim();
-    if (text.length < 3) {
-      setError("Dein Beitrag braucht mindestens 3 Zeichen.");
+    const checked = validatePostBody(body);
+    if (!checked.ok) {
+      setError(checked.error);
       return;
     }
-    if (text.length > MAX_POST_LENGTH) {
-      setError(
-        `Dein Beitrag ist ${text.length - MAX_POST_LENGTH} Zeichen zu lang.`,
-      );
+    setPending(true);
+    let post: Post | undefined;
+    try {
+      post = await publishPost({
+        body: checked.body,
+        animeId: animeId || undefined,
+        category,
+        containsSpoiler: spoiler,
+        media: toDatabase
+          ? []
+          : media.filter((item) => item.animeId === animeId),
+      });
+    } catch (saveError) {
+      // Der Text bleibt im Feld, damit nichts verloren geht.
+      setError(postErrorMessage(saveError as Error));
       return;
+    } finally {
+      setPending(false);
     }
-    const post = demoActions.createPost({
-      body: text,
-      animeId: animeId || undefined,
-      category,
-      containsSpoiler: spoiler,
-      media: media.filter((item) => item.animeId === animeId),
-    });
     if (!post) return;
     setBody("");
     setMedia([]);
@@ -243,21 +264,23 @@ export function PostComposer({
           )}
 
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setExpanded(true);
-                addArtwork();
-              }}
-              disabled={media.length >= 3}
-              className="text-muted-foreground"
-            >
-              <ImagePlusIcon aria-hidden="true" />
-              Bild
-              <span className="sr-only">(Demo-Artwork anhängen)</span>
-            </Button>
+            {!toDatabase && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setExpanded(true);
+                  addArtwork();
+                }}
+                disabled={media.length >= 3}
+                className="text-muted-foreground"
+              >
+                <ImagePlusIcon aria-hidden="true" />
+                Bild
+                <span className="sr-only">(Demo-Artwork anhängen)</span>
+              </Button>
+            )}
             <label className="flex min-h-9 items-center gap-2 text-sm font-medium text-muted-foreground">
               <Switch
                 checked={spoiler}
@@ -280,8 +303,11 @@ export function PostComposer({
                 </span>
               )}
             </span>
-            <Button type="submit" disabled={body.trim().length === 0}>
-              Posten
+            <Button
+              type="submit"
+              disabled={body.trim().length === 0 || pending}
+            >
+              {pending ? "Wird gepostet …" : "Posten"}
             </Button>
           </div>
         </div>

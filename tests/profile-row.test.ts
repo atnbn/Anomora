@@ -7,6 +7,7 @@ import {
   isMissingSchema,
   isUniqueViolation,
   rowToAccountFields,
+  rowToUserProfile,
   toProfileUpdate,
 } from "@/features/profiles/profile-row";
 import {
@@ -80,6 +81,29 @@ describe("rowToAccountFields", () => {
       onboardingComplete: true,
     });
     expect(rowToAccountFields({ ...row, bio: "Hallo" }).bio).toBe("Hallo");
+  });
+});
+
+describe("rowToUserProfile", () => {
+  it("baut das öffentliche Profil eines anderen Nutzers", () => {
+    expect(rowToUserProfile(row)).toEqual({
+      id: row.id,
+      username: "Kenji_92",
+      displayName: "Kenji",
+      bio: undefined,
+      avatarHue: 222,
+      role: "member",
+      badges: [],
+      favoriteAnimeIds: [],
+      joinedAt: row.created_at,
+      profileComplete: true,
+    });
+  });
+
+  it("übernimmt die Moderationsrolle", () => {
+    expect(rowToUserProfile({ ...row, role: "moderator" }).role).toBe(
+      "moderator",
+    );
   });
 });
 

@@ -1,25 +1,52 @@
 "use client";
 
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { UserXIcon } from "lucide-react";
 import { DetailSkeleton } from "@/components/feedback/skeletons";
 import { EmptyState } from "@/components/feedback/states";
 import { PageContainer } from "@/components/layout/app-shell";
 import { ProfileView } from "@/features/profiles/components/profile-view";
+import { fetchProfileByUsername } from "@/features/profiles/profiles-supabase";
 import { useDemoState } from "@/features/demo/store";
-import { getUserByUsernameSync } from "@/lib/data/users";
+import {
+  getRemoteProfilesVersion,
+  getUserByUsernameSync,
+  subscribeRemoteProfiles,
+} from "@/lib/data/users";
 
 /**
- * Profile von Konten, die im Browser registriert wurden, kennt der Server
- * nicht. Diese Komponente sucht sie nach dem Laden des Demo-Stores.
+ * Profile, die der Server nicht kennt: im Browser registrierte Demo-Konten
+ * und andere echte Nutzer aus der Tabelle `profiles`. Diese Komponente sucht
+ * sie nach dem Laden des Demo-Stores und lädt echte Profile bei Bedarf nach.
  */
 export function LocalProfile({ username }: { username: string }) {
   const { hydrated, accounts, profileOverrides } = useDemoState();
-  if (!hydrated) return <DetailSkeleton />;
+  const remoteVersion = useSyncExternalStore(
+    subscribeRemoteProfiles,
+    getRemoteProfilesVersion,
+    () => 0,
+  );
+  const [checkedName, setCheckedName] = useState<string | null>(null);
 
-  // accounts/profileOverrides lösen nach Änderungen ein erneutes Rendern aus.
+  // accounts/profileOverrides/remoteVersion lösen nach Änderungen ein erneutes Rendern aus.
   void accounts;
   void profileOverrides;
-  const user = getUserByUsernameSync(username);
+  void remoteVersion;
+  const user = hydrated ? getUserByUsernameSync(username) : undefined;
+  const shouldFetch = hydrated && !user && checkedName !== username;
+
+  useEffect(() => {
+    if (!shouldFetch) return;
+    let active = true;
+    void fetchProfileByUsername(username).finally(() => {
+      if (active) setCheckedName(username);
+    });
+    return () => {
+      active = false;
+    };
+  }, [username, shouldFetch]);
+
+  if (!hydrated || shouldFetch) return <DetailSkeleton />;
   if (user) return <ProfileView user={user} />;
 
   return (

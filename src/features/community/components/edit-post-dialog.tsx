@@ -15,30 +15,37 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { Post } from "@/features/community/types";
 import { MAX_POST_LENGTH } from "@/features/community/components/post-composer";
-import { demoActions } from "@/features/demo/store";
+import { savePostEdit } from "@/features/community/post-actions";
+import { postErrorMessage } from "@/features/community/post-row";
+import { postLength, validatePostBody } from "@/lib/validation/posts";
 
 function EditForm({ post, onDone }: { post: Post; onDone: () => void }) {
   const [body, setBody] = useState(post.body);
   const [spoiler, setSpoiler] = useState(post.containsSpoiler);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
   return (
     <form
       noValidate
       className="grid gap-4"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
-        const text = body.trim();
-        if (text.length < 3)
-          return setError("Dein Beitrag braucht mindestens 3 Zeichen.");
-        if (text.length > MAX_POST_LENGTH)
-          return setError(
-            `Dein Beitrag ist ${text.length - MAX_POST_LENGTH} Zeichen zu lang.`,
-          );
-        demoActions.updatePost(post.id, {
-          body: text,
-          containsSpoiler: spoiler,
-        });
+        if (pending) return;
+        const checked = validatePostBody(body);
+        if (!checked.ok) return setError(checked.error);
+        setPending(true);
+        try {
+          await savePostEdit(post, {
+            body: checked.body,
+            containsSpoiler: spoiler,
+          });
+        } catch (saveError) {
+          setError(postErrorMessage(saveError as Error));
+          return;
+        } finally {
+          setPending(false);
+        }
         toast.success("Änderungen gespeichert");
         onDone();
       }}
@@ -62,7 +69,7 @@ function EditForm({ post, onDone }: { post: Post; onDone: () => void }) {
           }}
         />
         <p className="text-right text-xs text-muted-foreground tabular">
-          {MAX_POST_LENGTH - body.length} Zeichen übrig
+          {MAX_POST_LENGTH - postLength(body)} Zeichen übrig
         </p>
       </div>
       <label className="flex items-center gap-2 text-sm font-medium">
@@ -85,7 +92,9 @@ function EditForm({ post, onDone }: { post: Post; onDone: () => void }) {
         <Button type="button" variant="outline" onClick={onDone}>
           Abbrechen
         </Button>
-        <Button type="submit">Speichern</Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? "Wird gespeichert …" : "Speichern"}
+        </Button>
       </DialogFooter>
     </form>
   );
