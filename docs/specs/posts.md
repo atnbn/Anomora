@@ -1,6 +1,6 @@
 # Spezifikation: Beiträge als erste echte Community-Tabelle (Schritt 3)
 
-Status: umgesetzt, Migration noch nicht in der Cloud angewendet · Branch: `feat/posts-table`
+Status: umgesetzt (PR #8) und am 17.11.2026 in der Cloud angewendet · Branch: `feat/posts-table`
 
 ## Ziel
 
@@ -78,13 +78,14 @@ Die Grenzen stehen in `src/lib/validation/posts.ts`; ein Test prüft, dass die M
 
 ## Akzeptanzkriterien
 
-- [ ] Migration legt Tabelle, Constraints, Indizes, RLS-Regeln, Spaltenrechte und den `edited_at`-Trigger an und droppt nichts. (Inhalt per Test und Review geprüft; Anwenden steht aus.)
-- [ ] Ein nicht angemeldeter Besucher sieht echte Beiträge, kann aber keine anlegen.
-- [ ] Ein angemeldeter Nutzer kann Beiträge anlegen, nur eigene bearbeiten und löschen und keinen Beitrag im Namen eines anderen anlegen.
-- [ ] Die Datenbank lehnt ab: Text mit 2 oder 1001 Zeichen, unbekannte Kategorie, `anime_id` in falschem Format, Änderung von `author_id` oder `created_at`.
-- [ ] Ein Beitrag aus Browser A erscheint nach Neuladen in Browser B (anderes Konto, auch abgemeldet) mit richtigem Autor.
-- [ ] Bearbeitete Beiträge zeigen „bearbeitet“ über `edited_at`.
-- [ ] Der Demo-Modus funktioniert unverändert; ohne angewendete Migration läuft die App wie bisher.
+- [x] Migration legt Tabelle, Constraints, Indizes, RLS-Regeln, Spaltenrechte und den `edited_at`-Trigger an und droppt nichts. (Inhalt per Test und Review geprüft; angewendet, `migration list` zeigt sie lokal und in der Cloud.)
+- [x] Ein nicht angemeldeter Besucher sieht echte Beiträge, kann aber keine anlegen. (Live: Lesen 200; Anlegen, Ändern und Löschen ohne Anmeldung mit 401/`42501` abgelehnt.)
+- [x] Ein angemeldeter Nutzer kann Beiträge anlegen, nur eigene bearbeiten und löschen. (Live mit zwei Konten über die Oberfläche geprüft.)
+- [ ] Kein Beitrag im Namen eines anderen und keine Änderung fremder Beiträge über die API. (Abgesichert durch RLS und Spaltenrechte, aber noch nicht mit einer angemeldeten Sitzung direkt gegen die Datenbank getestet.)
+- [ ] Die Datenbank lehnt ab: Text mit 2 oder 1001 Zeichen, unbekannte Kategorie, `anime_id` in falschem Format, Änderung von `author_id` oder `created_at`. (Constraints und Spaltenrechte stehen in der Migration, ein Test hält die Grenzen gleich; gegen die Live-Datenbank noch nicht geprüft.)
+- [x] Ein Beitrag aus Browser A erscheint nach Neuladen in Browser B (anderes Konto, auch abgemeldet) mit richtigem Autor.
+- [x] Bearbeitete Beiträge zeigen „bearbeitet“ über `edited_at`.
+- [x] Der Demo-Modus funktioniert unverändert; ohne angewendete Migration läuft die App wie bisher. (Lokal und live vor dem Anwenden geprüft: Rückfall auf Demo-Beiträge, Demo-Beitrag erstellen und löschen.)
 - [x] `npm run test`, `npm run lint`, `npm run typecheck` und `npm run build` sind lokal grün. `format:check` meldet lokal nur CRLF-Zeilenenden (Windows, `core.autocrlf=true`); mit `--end-of-line auto` ist alles formatiert. Die CI auf Linux betrifft das nicht.
 - [x] Tests decken ab: Eingabeprüfung (Grenzen, Leerraum, Emojis, Kategorie, Anime-ID), Zeile ↔ `Post` (mit und ohne Anime, bearbeitet, Spoiler, unbekannte Kategorie), Fehlermeldungen und dieselben Grenzen in Migration und Formular.
 
@@ -96,6 +97,8 @@ Mit zwei Testkonten A und B auf der Preview-Umgebung:
 2. B öffnet A's Beitrag: kein „Bearbeiten“/„Löschen“. Ein direkter `update`/`delete` aus der Browser-Konsole mit B's Sitzung ändert 0 Zeilen.
 3. A bearbeitet und löscht seinen Beitrag → bei B nach Neuladen geändert bzw. weg.
 4. Im SQL-Editor: `select * from pg_policies where tablename = 'posts';` zeigt genau die vier Regeln.
+
+**Ergebnis am 17.11.2026 (live):** Schritte 1 und 3 sowie der Oberflächenteil von Schritt 2 erfolgreich mit zwei Konten. Ohne Anmeldung lehnt die Datenbank Anlegen, Ändern und Löschen ab (401/`42501`); dabei wurden keine Daten geschrieben. Noch offen: der direkte Konsolenversuch aus Schritt 2 und Schritt 4.
 
 Bekannte Lücke bis zum Moderations-Schritt: Gesperrte Konten hält nur die Oberfläche auf, nicht die Datenbank.
 
