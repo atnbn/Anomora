@@ -2,6 +2,8 @@
 
 Eine Community-Plattform für Anime-Fans: Serien entdecken, Episoden verfolgen und spoilergeschützt mit anderen diskutieren. Ein eigenes Projekt, an dem ich KI-gestützte Entwicklung mit Claude Code übe – von der Spezifikation bis zum Review.
 
+**Live:** https://anomora-umber.vercel.app
+
 **Technik:** Next.js (App Router), React, TypeScript im Strict Mode, Supabase (Auth und Postgres mit Row Level Security), Tailwind CSS, shadcn/ui, Vitest, GitHub Actions und Vercel.
 
 ## Stand
@@ -73,7 +75,7 @@ Trage in `.env.local` die URL und den Publishable Key deines Supabase-Projekts e
 - [Supabase](docs/SUPABASE.md): Cloud-Anbindung, Profiltabelle, Migrationen und Umgebungsvariablen
 - [AniList-Anbindung](docs/ANILIST.md): echte Anime-Daten, Rate-Limit und Caching
 - [Demo-Modus](docs/DEMO.md): was simuliert ist und wie die Demo-Daten gespeichert werden
-- [Preview-Deployment](docs/DEPLOYMENT.md): GitHub Actions, Vercel und Preview-Umgebung
+- [Deployment](docs/DEPLOYMENT.md): GitHub Actions, Vercel, Previews und Production
 - [Git-Workflow](docs/GIT-WORKFLOW.md): Branch-Strategie
 - [Design](docs/DESIGN.md): Screen-Inventar, Gestaltungsrichtung und Design-Tokens
 - [Bilder und Demo-Inhalte](docs/ASSETS.md): Herkunft aller Bilder und Daten
