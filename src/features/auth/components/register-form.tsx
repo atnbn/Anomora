@@ -16,9 +16,14 @@ import {
   AuthHeading,
   SignedInNotice,
 } from "@/features/auth/components/auth-shared";
-import { authErrorMessage, signUp } from "@/features/auth/supabase-auth";
+import {
+  authErrorMessage,
+  isUsernameAvailable,
+  signUp,
+} from "@/features/auth/supabase-auth";
 import { demoActions } from "@/features/demo/store";
 import { useViewer } from "@/features/profiles/hooks";
+import { USERNAME_TAKEN_MESSAGE } from "@/features/profiles/profile-row";
 import { isUsernameTaken } from "@/lib/data/users";
 import {
   type FieldErrors,
@@ -67,9 +72,7 @@ export function RegisterForm() {
     const nextErrors: FieldErrors<Field> = {
       username:
         validateUsername(username) ??
-        (isUsernameTaken(username)
-          ? "Dieser Nutzername ist schon vergeben."
-          : undefined),
+        (isUsernameTaken(username) ? USERNAME_TAKEN_MESSAGE : undefined),
       email: validateEmail(values.email),
       password: validateNewPassword(values.password),
       confirm: validatePasswordConfirmation(values.password, values.confirm),
@@ -85,6 +88,13 @@ export function RegisterForm() {
 
     setPending(true);
     try {
+      // Die lokale Prüfung kennt nur Demo-Profile; die Datenbank kennt alle Konten.
+      if (!(await isUsernameAvailable(username))) {
+        setPending(false);
+        setErrors({ username: USERNAME_TAKEN_MESSAGE });
+        focusFirstInvalid(formRef.current);
+        return;
+      }
       const { needsConfirmation } = await signUp({
         email: values.email,
         password: values.password,

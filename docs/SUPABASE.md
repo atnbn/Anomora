@@ -26,7 +26,7 @@ Starte den Entwicklungsserver nach Änderungen an `.env.local` neu. In einer sp�
 | `src/proxy.ts`               | Bindet die Sitzungsaktualisierung in Next.js ein                                                       |
 | `scripts/check-supabase.mjs` | Prüft die Cloud-Verbindung ohne Daten zu verändern                                                     |
 | `supabase/config.toml`       | CLI-Konfiguration für einen optionalen lokalen Stack; konfiguriert nicht automatisch das Cloud-Projekt |
-| `supabase/migrations/`       | Platz für spätere versionierte SQL-Änderungen                                                          |
+| `supabase/migrations/`       | Versionierte SQL-Änderungen; die erste legt die Profiltabelle an (siehe unten)                         |
 
 ## Clients verwenden
 
@@ -71,10 +71,24 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 | `src/features/demo/demo-provider.tsx` | startet `onAuthStateChange` und spiegelt das Konto in den Store                                                                                                     |
 
 - Die Sitzung liegt in Cookies; der Proxy erneuert sie. Seiten lesen die Sitzung im Browser, damit sie statisch vorgerendert bleiben.
-- Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) stehen vorerst in den **Nutzer-Metadaten**. Mit Schritt 2 wandern sie in eine `profiles`-Tabelle mit RLS – erst dann ist der Nutzername projektweit eindeutig.
+- Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) liegen in der Tabelle **`profiles`** (Schritt 2, siehe [specs/profiles.md](specs/profiles.md)). Ist die Migration noch nicht angewendet, nutzt die App weiter die **Nutzer-Metadaten**.
 - Favoriten, Beiträge, Kommentare und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
-- Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt mit Schritt 2.
+- Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt in einem späteren Schritt.
 - Die Demo-Konten (`Demo ansehen`) bleiben bestehen und laufen ohne Supabase.
+
+## Profiltabelle
+
+Die Migration `supabase/migrations/20261117120000_create_profiles.sql` legt an:
+
+| Teil                           | Aufgabe                                                                                                     |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Tabelle `profiles`             | Profil je Konto; Constraints entsprechen `src/lib/validation/auth.ts`, Nutzername eindeutig ohne Groß/klein |
+| RLS und Spaltenrechte          | Alle dürfen lesen; angemeldete Nutzer ändern nur ihr eigenes Profil und nie `role`                          |
+| Trigger `on_auth_user_created` | Legt bei der Registrierung das Profil aus den Metadaten an; bei Namenskonflikt mit Ersatznamen `user_…`     |
+| Funktion `username_available`  | Prüft vor der Registrierung, ob ein Name frei ist                                                           |
+| Übernahme                      | Bereits registrierte Konten bekommen beim Anwenden einmalig ein Profil                                      |
+
+Die App spricht die Tabelle über `src/features/auth/supabase-auth.ts` an; reine Umwandlungen liegen in `src/features/profiles/profile-row.ts`. Die Migration wird nicht automatisch angewendet (siehe unten).
 
 Der Publishable Key ist für den Browser vorgesehen und ist kein Admin-Schlüssel. Datenzugriff wird über Datenbankberechtigungen und **Row Level Security (RLS)** geregelt. Lege neue Tabellen zusammen mit passenden RLS-Regeln an. Ein Secret- oder Service-Role-Key gehört niemals in `NEXT_PUBLIC_*`.
 
@@ -89,6 +103,6 @@ npm.cmd run supabase:link:dev
 
 Die zweite Zeile verknüpft diesen Ordner ausdrücklich mit der bereitgestellten Entwicklungs-Projekt-ID. Falls die CLI nach einem Datenbankpasswort fragt, gib es ausschließlich im eigenen Terminal ein.
 
-Eine neue Migration kannst du später mit `npx.cmd supabase migration new DEIN_NAME` erzeugen. Vor einem `db push` immer das verknüpfte Projekt und den SQL-Inhalt prüfen. Bisher wurden weder Tabellen noch Migrationen angelegt oder auf die Cloud angewendet. Für die reine Cloud-Anbindung brauchst du Docker nicht.
+Eine neue Migration kannst du mit `npx.cmd supabase migration new DEIN_NAME` erzeugen. Vor einem `db push` immer das verknüpfte Projekt und den SQL-Inhalt prüfen. Welche Migrationen in der Cloud schon angewendet sind, zeigt `npx.cmd supabase migration list`; anwenden mit `npx.cmd supabase db push`. Für die reine Cloud-Anbindung brauchst du Docker nicht.
 
 Offizielle Anleitungen: [Supabase mit Next.js und SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client), [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started).

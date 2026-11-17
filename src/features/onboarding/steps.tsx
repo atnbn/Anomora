@@ -23,7 +23,16 @@ import { AVATAR_COLORS, AVATAR_HUES } from "@/features/profiles/avatar";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import type { UserProfile } from "@/features/profiles/types";
 import { demoActions, useDemoState } from "@/features/demo/store";
-import { authErrorMessage, saveProfile } from "@/features/auth/supabase-auth";
+import {
+  authErrorMessage,
+  isSupabaseSession,
+  isUsernameAvailable,
+  saveProfile,
+} from "@/features/auth/supabase-auth";
+import {
+  USERNAME_TAKEN_MESSAGE,
+  UsernameTakenError,
+} from "@/features/profiles/profile-row";
 import {
   ACCENTS,
   setAccent,
@@ -72,9 +81,7 @@ export function ProfileStep({
       displayName: validateDisplayName(displayName),
       username:
         validateUsername(name) ??
-        (isUsernameTaken(name, viewer.id)
-          ? "Dieser Nutzername ist schon vergeben."
-          : undefined),
+        (isUsernameTaken(name, viewer.id) ? USERNAME_TAKEN_MESSAGE : undefined),
       bio: validateBio(bio),
     };
     setErrors(nextErrors);
@@ -84,6 +91,14 @@ export function ProfileStep({
     }
     setSaving(true);
     try {
+      if (
+        isSupabaseSession() &&
+        !(await isUsernameAvailable(name, viewer.username))
+      ) {
+        setErrors({ username: USERNAME_TAKEN_MESSAGE });
+        focusFirstInvalid(formRef.current);
+        return;
+      }
       await saveProfile(viewer.id, {
         displayName: displayName.trim(),
         username: name,
@@ -92,7 +107,10 @@ export function ProfileStep({
       });
       onDone();
     } catch (error) {
-      setSaveError(authErrorMessage(error as Error));
+      if (error instanceof UsernameTakenError) {
+        setErrors({ username: error.message });
+        focusFirstInvalid(formRef.current);
+      } else setSaveError(authErrorMessage(error as Error));
     } finally {
       setSaving(false);
     }

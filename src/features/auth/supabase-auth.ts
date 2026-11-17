@@ -4,6 +4,17 @@ import type { AuthError, SupabaseClient, User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { AVATAR_HUES } from "@/features/profiles/avatar";
 import {
+  PROFILE_COLUMNS,
+  type ProfileInput,
+  type ProfileRow,
+  type ProfileUpdate,
+  UsernameTakenError,
+  isMissingSchema,
+  isUniqueViolation,
+  rowToAccountFields,
+  toProfileUpdate,
+} from "@/features/profiles/profile-row";
+import {
   type DemoAccount,
   demoActions,
   getDemoState,
@@ -13,8 +24,9 @@ import {
  * Anmeldung über Supabase Auth (E-Mail + Passwort).
  *
  * Die Sitzung liegt in Cookies (@supabase/ssr), der Proxy erneuert sie.
- * Profilangaben stehen bis zur Profiltabelle (Schritt 2) in den
- * Nutzer-Metadaten; der Demo-Store spiegelt sie für die Oberfläche.
+ * Profilangaben liegen in der Tabelle `profiles` (Schritt 2). Solange die
+ * Migration nicht angewendet ist, nutzt die App weiter die Nutzer-Metadaten.
+ * Der Demo-Store spiegelt das Konto für die Oberfläche.
  * Passwörter werden nur an Supabase übergeben und nirgends gespeichert.
  */
 
@@ -39,7 +51,7 @@ export function getSupabase(): SupabaseClient | null {
   return client;
 }
 
-/** Profil-Metadaten, die ANIMORA im Supabase-Konto ablegt. */
+/** Profil-Metadaten im Supabase-Konto: Startwerte für die Profilzeile und Ersatz ohne Tabelle. */
 export type ProfileMetadata = {
   username?: string;
   display_name?: string;
@@ -48,10 +60,14 @@ export type ProfileMetadata = {
   onboarding_complete?: boolean;
 };
 
-export function userToAccount(user: User): DemoAccount {
+/** Baut das Konto aus dem Supabase-Nutzer; Werte aus der Profilzeile haben Vorrang. */
+export function userToAccount(
+  user: User,
+  row?: ProfileRow | null,
+): DemoAccount {
   const meta = (user.user_metadata ?? {}) as ProfileMetadata;
   const fallbackName = user.email?.split("@")[0] ?? "Mitglied";
-  return {
+  const account: DemoAccount = {
     id: user.id,
     email: user.email ?? "",
     username: meta.username ?? fallbackName,
@@ -62,12 +78,14 @@ export function userToAccount(user: User): DemoAccount {
     onboardingComplete: Boolean(meta.onboarding_complete),
     createdAt: user.created_at,
   };
+  return row ? { ...account, ...rowToAccountFields(row) } : account;
 }
 
 /** Übersetzt Supabase-Fehler in verständliche deutsche Meldungen. */
 export function authErrorMessage(
   error: AuthError | Error | null | undefined,
 ): string {
+  if (error instanceof UsernameTakenError) return error.message;
   const code = (error as AuthError | undefined)?.code;
   const status = (error as AuthError | undefined)?.status;
   switch (code) {
@@ -108,6 +126,93 @@ function requireClient(): SupabaseClient {
   return supabase;
 }
 
+/** Lädt die eigene Profilzeile; `null`, wenn sie fehlt oder die Tabelle noch nicht existiert. */
+async function fetchProfileRow(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<ProfileRow | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select(PROFILE_COLUMNS)
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) {
+    if (!isMissingSchema(error))
+      console.warn(
+        "[profiles] Profil konnte nicht geladen werden:",
+        error.message,
+      );
+    return null;
+  }
+  return data as ProfileRow | null;
+}
+
+/** Lädt das Profil nach und übernimmt es, solange derselbe Nutzer angemeldet ist. */
+async function refreshProfile(supabase: SupabaseClient, user: User) {
+  const row = await fetchProfileRow(supabase, user.id);
+  const session = getDemoState().session;
+  if (!row || session?.kind !== "supabase" || session.userId !== user.id)
+    return;
+  demoActions.applyAuthAccount(userToAccount(user, row));
+}
+
+/**
+ * Prüft, ob ein Nutzername in der Datenbank frei ist. Gibt `true` zurück,
+ * wenn Supabase fehlt oder die Migration noch nicht angewendet ist – dann
+ * gilt nur die lokale Prüfung.
+ */
+export async function isUsernameAvailable(
+  username: string,
+  currentUsername?: string,
+): Promise<boolean> {
+  if (currentUsername?.toLowerCase() === username.toLowerCase()) return true;
+  const supabase = getSupabase();
+  if (!supabase) return true;
+  const { data, error } = await supabase.rpc("username_available", {
+    name: username,
+  });
+  if (error) {
+    if (!isMissingSchema(error))
+      console.warn(
+        "[profiles] Nutzername konnte nicht geprüft werden:",
+        error.message,
+      );
+    return true;
+  }
+  return data === true;
+}
+
+/**
+ * Ändert das eigene Profil in der Tabelle. Ohne Tabelle landen die Werte
+ * wie bisher in den Metadaten.
+ */
+async function updateOwnProfile(
+  userId: string,
+  update: ProfileUpdate,
+  metadataFallback: ProfileMetadata,
+) {
+  const supabase = requireClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update(update)
+    .eq("id", userId)
+    .select(PROFILE_COLUMNS)
+    .maybeSingle();
+  if (error) {
+    if (isUniqueViolation(error)) throw new UsernameTakenError();
+    if (isMissingSchema(error)) {
+      await saveProfileMetadata(metadataFallback);
+      return;
+    }
+    throw error;
+  }
+  if (!data) throw new Error("Profil nicht gefunden.");
+  const row = data as ProfileRow;
+  const current = getDemoState().accounts.find((entry) => entry.id === row.id);
+  if (current)
+    demoActions.applyAuthAccount({ ...current, ...rowToAccountFields(row) });
+}
+
 /** Ziel der Bestätigungs- und Reset-Links (muss in Supabase als Redirect-URL erlaubt sein). */
 function callbackUrl(next: string) {
   return `${window.location.origin}/auth/confirm?next=${encodeURIComponent(next)}`;
@@ -144,7 +249,8 @@ export async function signIn(email: string, password: string) {
     password,
   });
   if (error) throw error;
-  const account = userToAccount(data.user);
+  const row = await fetchProfileRow(supabase, data.user.id);
+  const account = userToAccount(data.user, row);
   demoActions.applyAuthAccount(account);
   return account;
 }
@@ -220,9 +326,32 @@ export function startAuthSync(): () => void {
     return () => {};
   }
   const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user)
-      demoActions.applyAuthAccount(userToAccount(session.user));
-    else demoActions.clearAuthSession();
+    if (session?.user) {
+      const user = session.user;
+      const state = getDemoState();
+      const known =
+        state.session?.kind === "supabase" && state.session.userId === user.id
+          ? state.accounts.find((entry) => entry.id === user.id)
+          : undefined;
+      // Bekannte Profilwerte behalten, bis die Profilzeile geladen ist –
+      // sonst springt die Oberfläche kurz auf ältere Metadaten zurück.
+      const account = userToAccount(user);
+      demoActions.applyAuthAccount(
+        known
+          ? {
+              ...account,
+              username: known.username,
+              displayName: known.displayName,
+              bio: known.bio,
+              avatarHue: known.avatarHue,
+              onboardingComplete: known.onboardingComplete,
+            }
+          : account,
+      );
+      // Keine Supabase-Aufrufe direkt im Callback (Gefahr einer Blockade),
+      // deshalb das Profil im nächsten Durchlauf laden.
+      setTimeout(() => void refreshProfile(supabase, user), 0);
+    } else demoActions.clearAuthSession();
     demoActions.markAuthReady();
   });
   return () => data.subscription.unsubscribe();
@@ -232,18 +361,10 @@ export function isSupabaseSession() {
   return getDemoState().session?.kind === "supabase";
 }
 
-/** Profil speichern – bei Supabase-Konten in den Metadaten, sonst lokal (Demo). */
-export async function saveProfile(
-  userId: string,
-  profile: {
-    displayName: string;
-    username: string;
-    bio?: string;
-    avatarHue: number;
-  },
-) {
+/** Profil speichern – bei Supabase-Konten in der Tabelle `profiles`, sonst lokal (Demo). */
+export async function saveProfile(userId: string, profile: ProfileInput) {
   if (isSupabaseSession()) {
-    await saveProfileMetadata({
+    await updateOwnProfile(userId, toProfileUpdate(profile), {
       display_name: profile.displayName,
       username: profile.username,
       bio: profile.bio ?? null,
@@ -254,10 +375,15 @@ export async function saveProfile(
   demoActions.updateProfile(userId, profile);
 }
 
-/** Onboarding abschließen – bei Supabase-Konten dauerhaft im Konto vermerkt. */
+/** Onboarding abschließen – bei Supabase-Konten dauerhaft im Profil vermerkt. */
 export async function finishOnboarding() {
-  if (isSupabaseSession()) {
-    await saveProfileMetadata({ onboarding_complete: true });
+  const session = getDemoState().session;
+  if (session?.kind === "supabase") {
+    await updateOwnProfile(
+      session.userId,
+      { onboarding_complete: true },
+      { onboarding_complete: true },
+    );
     return;
   }
   demoActions.completeOnboarding();
