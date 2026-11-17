@@ -1,8 +1,8 @@
-# Preview-Deployments mit Vercel
+# Deployments mit Vercel
 
 ## Was vorbereitet ist
 
-Das Repository verwendet die direkte GitHub-Integration von Vercel. Feature-Branches bekommen nach dem Push ein Preview-Deployment mit eigener URL. Die URL erscheint am zugehörigen Pull Request, sobald Vercel das Repository verbunden und erfolgreich gebaut hat.
+Das Repository verwendet die direkte GitHub-Integration von Vercel. Feature-Branches bekommen nach dem Push ein Preview-Deployment mit eigener URL. Jeder Merge nach `main` erzeugt ein Production-Deployment unter https://anomora-umber.vercel.app. Die URL erscheint am zugehörigen Pull Request, sobald Vercel das Repository verbunden und erfolgreich gebaut hat.
 
 | Datei                       | Aufgabe                                                                      |
 | --------------------------- | ---------------------------------------------------------------------------- |
@@ -11,7 +11,7 @@ Das Repository verwendet die direkte GitHub-Integration von Vercel. Feature-Bran
 | `.nvmrc` und `package.json` | Legen Node.js 22 für Entwicklung, CI und Vercel fest                         |
 | `scripts/check-env.mjs`     | Bricht bei fehlenden Supabase-Umgebungsvariablen ab                          |
 
-Die Konfiguration ist zunächst auf Previews ausgerichtet: Automatische Git-Deployments für `main` sind in `vercel.json` deaktiviert. Für einen späteren Produktionsbetrieb muss diese Einstellung angepasst werden. Sie verhindert keine manuell gestarteten Produktionsdeployments oder einen separat ausgelösten ersten Import-Deploy.
+Production und Previews nutzen vorerst dasselbe Supabase-Entwicklungsprojekt. Vor dem Production-Build laufen dieselben Prüfungen wie bei Previews; schlägt eine fehl, bleibt die bisherige Production-Version online.
 
 ## Wie die Pipeline arbeitet
 
@@ -31,14 +31,14 @@ Für diese Schritte brauchst du Zugriff auf dein Vercel-Konto. Lokale Dateien al
 
 1. Importiere [atnbn/Anomora](https://github.com/atnbn/Anomora) als GitHub-Repository in Vercel oder verbinde ein bereits vorhandenes Vercel-Projekt damit.
 2. Verwende **Next.js** als Framework, das Projektverzeichnis `.` und Node.js **22.x**. Die Installations- und Build-Befehle kommen aus `vercel.json`.
-3. Lege unter **Settings → Environment Variables** diese Variablen für **Preview** an:
+3. Lege unter **Settings → Environment Variables** diese Variablen für **Preview** und **Production** an:
 
    | Variable                               | Wert                                                            |
    | -------------------------------------- | --------------------------------------------------------------- |
    | `NEXT_PUBLIC_SUPABASE_URL`             | URL deines Supabase-Entwicklungsprojekts aus `.env.local`       |
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable Key desselben Entwicklungsprojekts aus `.env.local` |
 
-4. Prüfe die Git-Verbindung und lasse `main` als Production Branch eingetragen. Die versionierte Konfiguration deaktiviert automatische Deployments dieses Branches; andere Branches werden als Preview behandelt.
+4. Prüfe die Git-Verbindung und lasse `main` als Production Branch eingetragen. Alle anderen Branches werden als Preview behandelt.
 5. Starte eine Preview aus einem Feature-Branch, der alle neuen Dateien einschließlich der Supabase-Anbindung enthält. Ein erneutes Deployment ist erforderlich, wenn du später Umgebungsvariablen änderst.
 
 Für diesen Aufbau sind kein Vercel-Token und keine Deployment-Secrets in GitHub Actions erforderlich. Die Vercel-GitHub-App erhält beim Verbinden Zugriff auf das ausgewählte Repository. Die `.env.local` wird nicht hochgeladen oder committet.
@@ -62,11 +62,14 @@ Unter GitHub **Settings → Rules → Rulesets** kannst du später für `main` d
 
 Die Preview greift auf das separate Supabase-Entwicklungsprojekt zu. Die [Supabase-Anleitung](SUPABASE.md) erklärt die Clients und Umgebungsvariablen.
 
-Sobald Auth-Callbacks implementiert sind, ergänze unter Supabase **Authentication → URL Configuration → Redirect URLs** die erlaubten Preview-Adressen. Verwende konkrete URLs oder ein auf deinen tatsächlichen Vercel-Team-Slug beschränktes Muster wie `https://*-DEIN-TEAM.vercel.app/**`. Der Team-Slug muss ersetzt werden. Aktuell gibt es noch keine Login-Funktion und keine Auth-Callbacks.
+Bestätigungs- und Passwort-Links führen auf `/auth/confirm` der Adresse, auf der sich jemand registriert. Trage deshalb unter Supabase **Authentication → URL Configuration → Redirect URLs** ein:
+
+- `https://anomora-umber.vercel.app/auth/confirm` für Production
+- für Previews konkrete URLs oder ein auf deinen tatsächlichen Vercel-Team-Slug beschränktes Muster wie `https://*-DEIN-TEAM.vercel.app/**`. Der Team-Slug muss ersetzt werden.
 
 ## Fehler verstehen
 
-- **Fehlende Umgebungsvariablen:** Beide Werte für die Vercel-Umgebung Preview anlegen und neu deployen.
+- **Fehlende Umgebungsvariablen:** Beide Werte für die Vercel-Umgebungen Preview und Production anlegen und neu deployen.
 - **Formatierung:** Lokal `npm.cmd run format` ausführen und die formatierten Dateien committen.
 - **TypeScript oder ESLint:** Die Meldungen lokal mit `npm.cmd run check` nachvollziehen und beheben.
 - **Kein Preview-Deployment:** Prüfen, ob das Repository verbunden ist, die Konfiguration gepusht wurde und du auf einem Branch außerhalb von `main` arbeitest.

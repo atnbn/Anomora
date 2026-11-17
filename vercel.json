@@ -2,10 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "npm ci",
-  "buildCommand": "npm exec -- prettier --write vercel.json && npm run build:preview",
-  "git": {
-    "deploymentEnabled": {
-      "main": false
-    }
-  }
+  "buildCommand": "npm exec -- prettier --write vercel.json && npm run build:preview"
 }
