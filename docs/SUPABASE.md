@@ -73,7 +73,8 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 - Die Sitzung liegt in Cookies; der Proxy erneuert sie. Seiten lesen die Sitzung im Browser, damit sie statisch vorgerendert bleiben.
 - Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) liegen in der Tabelle **`profiles`** (Schritt 2, siehe [specs/profiles.md](specs/profiles.md)). Ist die Migration noch nicht angewendet, nutzt die App weiter die **Nutzer-Metadaten**.
 - Beiträge von Supabase-Konten liegen in der Tabelle **`posts`** (Schritt 3, siehe [specs/posts.md](specs/posts.md)). Ist die Migration noch nicht angewendet, landen sie wie bisher im Browser.
-- Favoriten, Likes, Kommentare und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
+- Kommentare und Antworten von Supabase-Konten unter echten Beiträgen und in Episodendiskussionen liegen in der Tabelle **`comments`** (Schritt 4, siehe [specs/comments.md](specs/comments.md)). Ohne angewendete Migration landen sie wie bisher im Browser.
+- Favoriten, Likes und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
 - Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt in einem späteren Schritt.
 - Die Demo-Konten (`Demo ansehen`) bleiben bestehen und laufen ohne Supabase.
 
@@ -111,6 +112,28 @@ Die Migration `supabase/migrations/20261117140000_create_posts.sql` legt an:
 | `src/features/profiles/profiles-supabase.ts` | Lädt Profile anderer Nutzer für `/u/[username]`                                  |
 
 Nach dem Anwenden die RLS-Checkliste in [specs/posts.md](specs/posts.md#manuelle-rls-prüfung-nach-dem-anwenden) mit zwei Testkonten durchgehen.
+
+## Kommentartabelle
+
+Die Migration `supabase/migrations/20261118120000_create_comments.sql` legt an:
+
+| Teil                                            | Aufgabe                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Tabelle `comments`                              | Kommentare zu einem echten Beitrag (`post_id`) oder einer Episode (`anime_id` + `episode_number`)       |
+| Constraints                                     | 2–600 Zeichen, genau ein Ziel, Anime-ID und Folgennummer wie in `src/lib/validation/comments.ts`        |
+| Trigger `comments_check_parent`                 | Antworten nur auf Wurzelkommentare und mit demselben Ziel (eine Antwortebene)                           |
+| RLS und Spaltenrechte                           | Alle dürfen lesen; angemeldete Nutzer kommentieren im eigenen Namen und löschen nur eigene; kein Ändern |
+| `post_comment_counts`, `episode_comment_counts` | Kommentarzahlen für Feed, Episodenliste und Dashboard                                                   |
+
+Antworten verschwinden mit ihrem Kommentar, Kommentare mit ihrem Beitrag (`on delete cascade`).
+
+| Datei                                         | Aufgabe                                                                  |
+| --------------------------------------------- | ------------------------------------------------------------------------ |
+| `src/features/community/comments-supabase.ts` | Lädt Threads je Ziel und Kommentarzahlen, legt an, löscht                |
+| `src/features/community/comment-actions.ts`   | Entscheidet zwischen Tabelle und Demo-Store                              |
+| `src/features/community/comment-row.ts`       | Reine Umwandlungen Zeile ↔ Kommentar, Ziel-Zuordnung und Fehlermeldungen |
+
+Nach dem Anwenden die RLS-Checkliste in [specs/comments.md](specs/comments.md) mit zwei Testkonten durchgehen.
 
 Der Publishable Key ist für den Browser vorgesehen und ist kein Admin-Schlüssel. Datenzugriff wird über Datenbankberechtigungen und **Row Level Security (RLS)** geregelt. Lege neue Tabellen zusammen mit passenden RLS-Regeln an. Ein Secret- oder Service-Role-Key gehört niemals in `NEXT_PUBLIC_*`.
 

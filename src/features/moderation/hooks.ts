@@ -11,6 +11,7 @@ import { findActiveBan, useDemoState } from "@/features/demo/store";
 import { resolveTime, useClock } from "@/features/demo/clock";
 import { demoComments, demoPosts } from "@/data/demo/posts";
 import { useRemotePosts } from "@/features/community/posts-supabase";
+import { useRemoteComments } from "@/features/community/comments-supabase";
 import { getAnimeByIdSync, getEpisodeByIdSync } from "@/lib/data/anime";
 import { getUserByIdSync } from "@/lib/data/users";
 import { episodeHref } from "@/features/anime/labels";
@@ -42,9 +43,14 @@ export type ResolvedReport = DemoReport & {
 export function useTargetResolver() {
   const demo = useDemoState();
   const remote = useRemotePosts();
+  const remoteComments = useRemoteComments();
   return useMemo(() => {
     const posts = [...remote.posts, ...demo.createdPosts, ...demoPosts];
-    const comments = [...demo.createdComments, ...demoComments];
+    const comments = [
+      ...Object.values(remoteComments.threads).flat(),
+      ...demo.createdComments,
+      ...demoComments,
+    ];
 
     return (type: DemoReport["targetType"], id: string): ReportTarget => {
       if (type === "post") {
@@ -111,7 +117,7 @@ export function useTargetResolver() {
         deleted: !user,
       };
     };
-  }, [demo, remote]);
+  }, [demo, remote, remoteComments]);
 }
 
 export function useResolvedReports(): ResolvedReport[] {

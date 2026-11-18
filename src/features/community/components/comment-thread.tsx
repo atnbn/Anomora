@@ -33,11 +33,19 @@ import {
   requireSession,
   useDemoState,
 } from "@/features/demo/store";
+import { Badge } from "@/components/ui/badge";
+import {
+  publishComment,
+  removeOwnComment,
+} from "@/features/community/comment-actions";
+import { commentErrorMessage } from "@/features/community/comment-row";
+import { isUuid } from "@/features/community/post-row";
+import { useRemoteComments } from "@/features/community/comments-supabase";
 import { getUserByIdSync } from "@/lib/data/users";
 import { formatCount, pluralize } from "@/lib/format";
+import { validateCommentBody } from "@/lib/validation/comments";
 import { cn } from "@/lib/utils";
 
-const MAX_COMMENT_LENGTH = 600;
 const PAGE_SIZE = 8;
 
 function CommentForm({
@@ -63,26 +71,42 @@ function CommentForm({
   const [body, setBody] = useState("");
   const [spoiler, setSpoiler] = useState(spoilerDefault);
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const { session } = useDemoState();
+  useRemoteComments();
+  // Supabase-Konto unter einem Demo-Beitrag: Der Kommentar bleibt lokal.
+  const localOnlyHint =
+    session?.kind === "supabase" &&
+    !parentId &&
+    target.type === "post" &&
+    !isUuid(target.postId);
 
   return (
     <form
       noValidate
       className="flex gap-3"
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
+        if (pending) return;
         if (!requireCanPost("Melde dich an, um zu kommentieren.")) return;
-        const text = body.trim();
-        if (text.length < 2) return setError("Schreib mindestens 2 Zeichen.");
-        if (text.length > MAX_COMMENT_LENGTH)
-          return setError(
-            `Maximal ${MAX_COMMENT_LENGTH} Zeichen – du bist ${text.length - MAX_COMMENT_LENGTH} drüber.`,
-          );
-        demoActions.createComment({
-          body: text,
-          target,
-          parentId,
-          containsSpoiler: spoiler,
-        });
+        const checked = validateCommentBody(body);
+        if (!checked.ok) return setError(checked.error);
+        setPending(true);
+        try {
+          const comment = await publishComment({
+            body: checked.body,
+            target,
+            parentId,
+            containsSpoiler: spoiler,
+          });
+          if (!comment) return;
+        } catch (saveError) {
+          // Der Text bleibt im Feld, damit nichts verloren geht.
+          setError(commentErrorMessage(saveError as Error));
+          return;
+        } finally {
+          setPending(false);
+        }
         setBody("");
         setError(null);
         toast.success(
@@ -132,6 +156,11 @@ function CommentForm({
             {error}
           </p>
         )}
+        {localOnlyHint && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Demo-Beitrag – dein Kommentar bleibt in diesem Browser.
+          </p>
+        )}
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <label className="flex min-h-9 items-center gap-2 text-sm font-medium text-muted-foreground">
             <Switch
@@ -149,9 +178,13 @@ function CommentForm({
             <Button
               type="submit"
               size={compact ? "sm" : "default"}
-              disabled={body.trim().length === 0}
+              disabled={body.trim().length === 0 || pending}
             >
-              {parentId ? "Antworten" : "Kommentieren"}
+              {pending
+                ? "Wird gesendet …"
+                : parentId
+                  ? "Antworten"
+                  : "Kommentieren"}
             </Button>
           </div>
         </div>
@@ -186,6 +219,15 @@ function CommentItem({
             time={comment.time}
             className="text-xs text-muted-foreground"
           />
+          {comment.source !== "supabase" && (
+            <Badge
+              variant="outline"
+              className="h-5 px-1.5 text-[0.6875rem] font-semibold text-muted-foreground"
+              title="Beispiel- oder lokaler Kommentar, nur in diesem Browser"
+            >
+              Demo
+            </Badge>
+          )}
         </div>
         <SpoilerGuard
           active={spoilerActive && comment.containsSpoiler && !comment.isOwn}
@@ -273,11 +315,13 @@ function CommentItem({
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Kommentar löschen?"
-        description="Dein Kommentar wird entfernt. Antworten anderer bleiben sichtbar."
+        description="Der Kommentar und seine Antworten werden entfernt. Das kann nicht rückgängig gemacht werden."
         confirmLabel="Löschen"
         onConfirm={() => {
-          demoActions.deleteComment(comment.id);
-          toast.success("Kommentar gelöscht");
+          removeOwnComment(comment).then(
+            () => toast.success("Kommentar gelöscht"),
+            (error: Error) => toast.error(commentErrorMessage(error)),
+          );
         }}
       />
     </div>

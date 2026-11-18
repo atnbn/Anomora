@@ -14,7 +14,8 @@ Eine Community-Plattform für Anime-Fans: Serien entdecken, Episoden verfolgen u
 | Profile (Nutzername, Anzeigename, Beschreibung)   | echt in der Tabelle `profiles` mit RLS                   |
 | Beiträge (erstellen, bearbeiten, löschen)         | echt in der Tabelle `posts` mit RLS                      |
 | Anime, Episoden, Sendetermine, Suche              | echt von AniList, gecacht auf Server, CDN und im Browser |
-| Likes, Kommentare, Folgen, Favoriten, Moderation  | Demo-Daten im Browser, siehe [Demo-Modus](docs/DEMO.md)  |
+| Kommentare und Antworten                          | echt in der Tabelle `comments` mit RLS                   |
+| Likes, Folgen, Favoriten, Moderation              | Demo-Daten im Browser, siehe [Demo-Modus](docs/DEMO.md)  |
 
 Die Oberfläche ist für alle Bereiche fertig. Die Demo-Bereiche werden nach und nach auf Supabase-Tabellen umgestellt, ohne dass sich die Oberfläche ändert.
 
@@ -26,7 +27,7 @@ Die Oberfläche ist für alle Bereiche fertig. Die Demo-Bereiche werden nach und
 4. **Tests:** Vitest prüft die Logik, z. B. ob die Regeln der Datenbank und der Formulare übereinstimmen.
 5. **CI:** GitHub Actions prüft jeden Pull Request mit Formatierung, Lint, TypeScript, Tests und Build.
 
-Beispiele: [Profiltabelle mit RLS](docs/specs/profiles.md), [Beiträge als erste Community-Tabelle](docs/specs/posts.md).
+Beispiele: [Profiltabelle mit RLS](docs/specs/profiles.md), [Beiträge als erste Community-Tabelle](docs/specs/posts.md), [Kommentare](docs/specs/comments.md).
 
 ## Lokal starten
 
@@ -65,7 +66,7 @@ Trage in `.env.local` die URL und den Publishable Key deines Supabase-Projekts e
 
 ## Nächste Schritte
 
-- Tabellen mit RLS für `comments`, `likes`, `follows`, `favorites`, `blocks`, `reports`, `moderation_actions` und `episode_progress`
+- Tabellen mit RLS für `likes`, `follows`, `favorites`, `blocks`, `reports`, `moderation_actions` und `episode_progress`
 - Moderation serverseitig: Rechteprüfung über `profiles.role` und Server Actions
 - Supabase Storage für Avatare und Beitragsbilder
 
@@ -73,7 +74,7 @@ Trage in `.env.local` die URL und den Publishable Key deines Supabase-Projekts e
 
 - [Einstieg in Next.js](docs/EINSTIEG.md): Begriffe, Ordnerstruktur, Server und Client Components, Tailwind und shadcn
 - [Projektstruktur](docs/PROJEKTSTRUKTUR.md): Ordner, Route Groups und Aufteilung nach Features
-- [Supabase](docs/SUPABASE.md): Cloud-Anbindung, Profil- und Beitragstabelle, Migrationen und Umgebungsvariablen
+- [Supabase](docs/SUPABASE.md): Cloud-Anbindung, Profil-, Beitrags- und Kommentartabelle, Migrationen und Umgebungsvariablen
 - [AniList-Anbindung](docs/ANILIST.md): echte Anime-Daten, Rate-Limit und Caching
 - [Demo-Modus](docs/DEMO.md): was simuliert ist und wie die Demo-Daten gespeichert werden
 - [Deployment](docs/DEPLOYMENT.md): GitHub Actions, Vercel, Previews und Production

@@ -1,11 +1,19 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { Comment, FeedFilter, Post } from "@/features/community/types";
 import { demoComments, demoPosts } from "@/data/demo/posts";
 import { useDemoState } from "@/features/demo/store";
 import { resolveTime, useClock } from "@/features/demo/clock";
 import { useRemotePosts } from "@/features/community/posts-supabase";
+import {
+  dbTargetFor,
+  loadEpisodeCommentCounts,
+  loadThread,
+  useRemoteComments,
+} from "@/features/community/comments-supabase";
+import { dbTargetKey } from "@/features/community/comment-row";
+import { getAnimeByIdSync } from "@/lib/data/anime";
 
 export type ResolvedPost = Post & {
   time: number;
@@ -32,11 +40,13 @@ export function usePosts(): ResolvedPost[] {
   const clock = useClock();
   const comments = useAllComments();
   const remote = useRemotePosts();
+  const { postCounts } = useRemoteComments();
 
   return useMemo(() => {
+    // Echte Kommentare zählt die Datenbank (postCounts), lokal nur Demo-Kommentare.
     const commentCounts = new Map<string, number>();
     for (const comment of comments) {
-      if (comment.target.type === "post") {
+      if (comment.source !== "supabase" && comment.target.type === "post") {
         commentCounts.set(
           comment.target.postId,
           (commentCounts.get(comment.target.postId) ?? 0) + 1,
@@ -61,12 +71,13 @@ export function usePosts(): ResolvedPost[] {
           likeCount: post.baseLikeCount + (liked ? 1 : 0),
           liked,
           saved: demo.savedPostIds.includes(post.id),
-          commentCount: commentCounts.get(post.id) ?? 0,
+          commentCount:
+            (commentCounts.get(post.id) ?? 0) + (postCounts[post.id] ?? 0),
           isOwn: demo.session?.userId === post.authorId,
         };
       })
       .toSorted((a, b) => b.time - a.time);
-  }, [demo, clock, comments, remote]);
+  }, [demo, clock, comments, remote, postCounts]);
 }
 
 export function filterPosts(
@@ -93,13 +104,22 @@ export function filterPosts(
   }
 }
 
-function useAllComments(): ResolvedComment[] {
+/**
+ * Alle sichtbaren Kommentare: Demo-Daten, lokal erstellte und die bereits
+ * geladenen echten Kommentare, ohne gelöschte, entfernte und blockierte Autoren.
+ */
+export function useAllComments(): ResolvedComment[] {
   const demo = useDemoState();
   const clock = useClock();
+  const { threads } = useRemoteComments();
 
   return useMemo(
     () =>
-      [...demoComments, ...demo.createdComments]
+      [
+        ...demoComments,
+        ...demo.createdComments,
+        ...Object.values(threads).flat(),
+      ]
         .filter(
           (comment) =>
             !demo.deletedCommentIds.includes(comment.id) &&
@@ -116,16 +136,31 @@ function useAllComments(): ResolvedComment[] {
             isOwn: demo.session?.userId === comment.authorId,
           };
         }),
-    [demo, clock],
+    [demo, clock, threads],
   );
 }
 
 export type CommentSort = "newest" | "oldest" | "top";
 
+/** Lädt die echten Kommentare eines Ziels, sobald ein Thread angezeigt wird. */
+function useLoadThread(target: Comment["target"]) {
+  const { status } = useRemoteComments();
+  const dbTarget = status === "ok" ? dbTargetFor(target) : undefined;
+  const key = dbTarget ? dbTargetKey(dbTarget) : null;
+
+  useEffect(() => {
+    if (!dbTarget) return;
+    void loadThread(dbTarget, target);
+    // key fasst dbTarget zusammen; target ändert sich mit key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+}
+
 export function useComments(
   target: Comment["target"],
   sort: CommentSort = "oldest",
 ) {
+  useLoadThread(target);
   const all = useAllComments();
   const key = target.type === "post" ? target.postId : target.episodeId;
 
@@ -153,18 +188,42 @@ export function useComments(
   }, [all, key, sort]);
 }
 
-export function useEpisodeCommentCounts(): Map<string, number> {
+/**
+ * Kommentarzahl je Episoden-ID: lokale Demo-Kommentare plus die Zahlen aus
+ * der Datenbank für die angegebenen Anime (werden bei Bedarf geladen).
+ */
+export function useEpisodeCommentCounts(
+  animeIds: string[],
+): Map<string, number> {
   const all = useAllComments();
+  const { episodeCounts, status } = useRemoteComments();
+  const idsKey = animeIds.join("|");
+
+  useEffect(() => {
+    if (status !== "ok" || animeIds.length === 0) return;
+    void loadEpisodeCommentCounts(animeIds);
+    // idsKey fasst animeIds zusammen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey, status]);
+
   return useMemo(() => {
     const counts = new Map<string, number>();
     for (const comment of all) {
-      if (comment.target.type === "episode") {
+      if (comment.source !== "supabase" && comment.target.type === "episode") {
         counts.set(
           comment.target.episodeId,
           (counts.get(comment.target.episodeId) ?? 0) + 1,
         );
       }
     }
+    for (const [animeId, perEpisode] of Object.entries(episodeCounts)) {
+      const anime = getAnimeByIdSync(animeId);
+      if (!anime) continue;
+      for (const [number, count] of Object.entries(perEpisode)) {
+        const episodeId = `${anime.slug}-${number}`;
+        counts.set(episodeId, (counts.get(episodeId) ?? 0) + count);
+      }
+    }
     return counts;
-  }, [all]);
+  }, [all, episodeCounts]);
 }
