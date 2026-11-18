@@ -33,6 +33,10 @@ import {
 } from "@/features/community/components/moderation-dialogs";
 import { EditPostDialog } from "@/features/community/components/edit-post-dialog";
 import { removeOwnPost } from "@/features/community/post-actions";
+import {
+  togglePostLike,
+  togglePostSaved,
+} from "@/features/community/like-actions";
 import { postErrorMessage } from "@/features/community/post-row";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/features/profiles/components/user-avatar";
@@ -283,7 +287,9 @@ export function PostCard({
           aria-label={`${post.liked ? "Gefällt mir nicht mehr" : "Gefällt mir"} – ${pluralize(post.likeCount, "Like", "Likes")}`}
           onClick={() => {
             if (requireSession("Melde dich an, um Beiträge zu liken."))
-              demoActions.togglePostLike(post.id);
+              togglePostLike(post).catch((error: Error) =>
+                toast.error(error.message),
+              );
           }}
           className={cn(
             "inline-flex h-10 items-center gap-2 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground",
@@ -331,9 +337,12 @@ export function PostCard({
           onClick={() => {
             if (!requireSession("Melde dich an, um Beiträge zu speichern."))
               return;
-            demoActions.togglePostSaved(post.id);
-            toast.success(
-              post.saved ? "Nicht mehr gespeichert" : "Beitrag gespeichert",
+            togglePostSaved(post).then(
+              () =>
+                toast.success(
+                  post.saved ? "Nicht mehr gespeichert" : "Beitrag gespeichert",
+                ),
+              (error: Error) => toast.error(error.message),
             );
           }}
           className={cn(

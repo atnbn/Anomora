@@ -21,10 +21,13 @@ import { startClock } from "@/features/demo/clock";
 import { loadRememberedAnime } from "@/features/anime/anime-cache";
 import { startAuthSync } from "@/features/auth/supabase-auth";
 import { loadRemotePosts } from "@/features/community/posts-supabase";
+import { syncLikesForUser } from "@/features/community/likes-supabase";
 
 /** Lädt den lokalen Demo-Zustand, startet die Uhr und zeigt den Anmelde-Hinweis. */
 export function DemoProvider({ children }: { children: React.ReactNode }) {
-  const { authPrompt } = useDemoState();
+  const { authPrompt, session } = useDemoState();
+  // Eigene Datenbank-Likes gelten nur für ein angemeldetes Supabase-Konto.
+  const likesUserId = session?.kind === "supabase" ? session.userId : null;
   const router = useRouter();
 
   function goTo(path: "/login" | "/register") {
@@ -43,6 +46,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     // Supabase-Sitzung (Cookies) in den Store spiegeln und auf Änderungen hören.
     return startAuthSync();
   }, []);
+
+  useEffect(() => {
+    syncLikesForUser(likesUserId);
+  }, [likesUserId]);
 
   return (
     <>

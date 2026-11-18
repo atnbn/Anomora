@@ -28,7 +28,6 @@ import { UserAvatar } from "@/features/profiles/components/user-avatar";
 import { UserName } from "@/features/profiles/components/user-name";
 import { useViewer } from "@/features/profiles/hooks";
 import {
-  demoActions,
   requireCanPost,
   requireSession,
   useDemoState,
@@ -41,6 +40,7 @@ import {
 import { commentErrorMessage } from "@/features/community/comment-row";
 import { isUuid } from "@/features/community/post-row";
 import { useRemoteComments } from "@/features/community/comments-supabase";
+import { toggleCommentLike } from "@/features/community/like-actions";
 import { getUserByIdSync } from "@/lib/data/users";
 import { formatCount, pluralize } from "@/lib/format";
 import { validateCommentBody } from "@/lib/validation/comments";
@@ -244,7 +244,9 @@ function CommentItem({
             aria-label={`${comment.liked ? "Gefällt mir nicht mehr" : "Gefällt mir"} – ${pluralize(comment.likeCount, "Like", "Likes")}`}
             onClick={() => {
               if (requireSession("Melde dich an, um Kommentare zu liken."))
-                demoActions.toggleCommentLike(comment.id);
+                toggleCommentLike(comment).catch((error: Error) =>
+                  toast.error(error.message),
+                );
             }}
             className={cn(
               "inline-flex h-9 items-center gap-1.5 rounded-full px-2 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground",
