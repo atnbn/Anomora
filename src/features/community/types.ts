@@ -40,6 +40,8 @@ export type Comment = {
   createdAt: string;
   baseLikeCount: number;
   seeded?: boolean;
+  /** `supabase`: liegt in der Tabelle `comments`. Fehlt bei Demo-Kommentaren. */
+  source?: "demo" | "supabase";
 };
 
 export type FeedFilter =

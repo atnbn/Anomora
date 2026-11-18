@@ -18,6 +18,7 @@ import {
   rowToUserProfile,
 } from "@/features/profiles/profile-row";
 import { getSupabase } from "@/features/auth/supabase-auth";
+import { loadPostCommentCounts } from "@/features/community/comments-supabase";
 import { registerRemoteProfiles } from "@/lib/data/users";
 
 /**
@@ -117,6 +118,7 @@ export async function loadRemotePosts() {
   const posts = acceptRows((data ?? []) as unknown as PostRowWithAuthor[]);
   upsertPosts(posts);
   setState({ status: "ready" });
+  void loadPostCommentCounts(posts.map((post) => post.id));
 }
 
 /** Lädt einen einzelnen Beitrag nach, z. B. für geteilte Links auf ältere Beiträge. */
@@ -139,6 +141,7 @@ export async function fetchRemotePost(id: string): Promise<Post | null> {
   if (!data) return null;
   const [post] = acceptRows([data as unknown as PostRowWithAuthor]);
   upsertPosts([post]);
+  void loadPostCommentCounts([post.id]);
   return post;
 }
 

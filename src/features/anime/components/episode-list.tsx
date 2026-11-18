@@ -34,7 +34,7 @@ export function EpisodeList({ anime }: { anime: Anime }) {
   const episodes = useTimedEpisodes(raw);
   const { now } = useClock();
   const { watchedEpisodeIds, session } = useDemoState();
-  const counts = useEpisodeCommentCounts();
+  const counts = useEpisodeCommentCounts([anime.id]);
   const [order, setOrder] = useState<"desc" | "asc">("desc");
   const [query, setQuery] = useState("");
   const [visible, setVisible] = useState(PAGE_SIZE);

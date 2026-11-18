@@ -201,7 +201,9 @@ function UpcomingList({ schedules }: { schedules: AnimeSchedule[] }) {
 }
 
 function DiscussionList({ schedules }: { schedules: AnimeSchedule[] }) {
-  const counts = useEpisodeCommentCounts();
+  const counts = useEpisodeCommentCounts(
+    schedules.map((entry) => entry.anime.id),
+  );
   const { watchedEpisodeIds, preferences } = useDemoState();
   const { now } = useClock();
   // Nur Folgen der letzten 30 Tage – bei abgeschlossenen Serien gibt es nichts Neues.
