@@ -22,6 +22,7 @@ import {
 import { getSupabase } from "@/features/auth/supabase-auth";
 import { getEpisodeByIdSync } from "@/lib/data/anime";
 import { registerRemoteProfiles } from "@/lib/data/users";
+import { loadCommentLikes } from "@/features/community/likes-supabase";
 
 /**
  * Echte Kommentare aus der Tabelle `comments` (docs/specs/comments.md).
@@ -176,6 +177,7 @@ export async function loadThread(
       [key]: rows.map((row) => rowToComment(row, uiTarget)),
     },
   });
+  void loadCommentLikes(rows.map((row) => row.id));
 }
 
 /** Lädt die Kommentarzahlen für echte Beiträge. */

@@ -74,7 +74,8 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 - Profilangaben (Nutzername, Anzeigename, Beschreibung, Avatarfarbe, Onboarding-Status) liegen in der Tabelle **`profiles`** (Schritt 2, siehe [specs/profiles.md](specs/profiles.md)). Ist die Migration noch nicht angewendet, nutzt die App weiter die **Nutzer-Metadaten**.
 - Beiträge von Supabase-Konten liegen in der Tabelle **`posts`** (Schritt 3, siehe [specs/posts.md](specs/posts.md)). Ist die Migration noch nicht angewendet, landen sie wie bisher im Browser.
 - Kommentare und Antworten von Supabase-Konten unter echten Beiträgen und in Episodendiskussionen liegen in der Tabelle **`comments`** (Schritt 4, siehe [specs/comments.md](specs/comments.md)). Ohne angewendete Migration landen sie wie bisher im Browser.
-- Favoriten, Likes und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
+- Likes und Lesezeichen von Supabase-Konten auf echten Beiträgen und Kommentaren liegen in **`post_likes`**, **`comment_likes`** und **`post_saves`** (Schritt 5, siehe [specs/likes.md](specs/likes.md)).
+- Favoriten und Moderation liegen weiterhin im Browser (Demo-Store), sind aber dem echten Konto zugeordnet.
 - Konto löschen braucht eine Server-Funktion mit Service-Role-Schlüssel und kommt in einem späteren Schritt.
 - Die Demo-Konten (`Demo ansehen`) bleiben bestehen und laufen ohne Supabase.
 
@@ -134,6 +135,25 @@ Antworten verschwinden mit ihrem Kommentar, Kommentare mit ihrem Beitrag (`on de
 | `src/features/community/comment-row.ts`       | Reine Umwandlungen Zeile ↔ Kommentar, Ziel-Zuordnung und Fehlermeldungen |
 
 Nach dem Anwenden die RLS-Checkliste in [specs/comments.md](specs/comments.md) mit zwei Testkonten durchgehen.
+
+## Likes und Lesezeichen
+
+Die Migration `supabase/migrations/20261118160000_create_likes.sql` legt an:
+
+| Teil                                      | Aufgabe                                                                                                             |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Tabellen `post_likes`, `comment_likes`    | Ein Like je Konto und Beitrag bzw. Kommentar (Primärschlüssel), verschwindet mit dem Inhalt                         |
+| Tabelle `post_saves`                      | Private Lesezeichen auf Beiträge                                                                                    |
+| RLS und Spaltenrechte                     | Einzelne Einträge sieht und löscht nur die eigene Person; anlegen nur im eigenen Namen; kein Zugriff ohne Anmeldung |
+| `post_like_counts`, `comment_like_counts` | Like-Zahlen für alle (`security definer`, liefern nur Zahlen, keine Namen)                                          |
+
+| Datei                                      | Aufgabe                                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `src/features/community/likes-supabase.ts` | Lädt Zahlen und eigene Likes, setzt und entfernt Likes und Lesezeichen sofort (mit Rücknahme bei Fehlern) |
+| `src/features/community/like-actions.ts`   | Entscheidet zwischen Datenbank (Supabase-Konto, echter Inhalt) und Demo-Store                             |
+| `src/features/community/like-row.ts`       | Reine Hilfsfunktionen: Zahlen, Anzeige, Fehlermeldungen                                                   |
+
+Nach dem Anwenden die RLS-Checkliste in [specs/likes.md](specs/likes.md) mit zwei Testkonten durchgehen.
 
 Der Publishable Key ist für den Browser vorgesehen und ist kein Admin-Schlüssel. Datenzugriff wird über Datenbankberechtigungen und **Row Level Security (RLS)** geregelt. Lege neue Tabellen zusammen mit passenden RLS-Regeln an. Ein Secret- oder Service-Role-Key gehört niemals in `NEXT_PUBLIC_*`.
 

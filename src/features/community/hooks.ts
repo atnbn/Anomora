@@ -14,6 +14,8 @@ import {
 } from "@/features/community/comments-supabase";
 import { dbTargetKey } from "@/features/community/comment-row";
 import { getAnimeByIdSync } from "@/lib/data/anime";
+import { useRemoteLikes } from "@/features/community/likes-supabase";
+import { resolveLikeState } from "@/features/community/like-row";
 
 export type ResolvedPost = Post & {
   time: number;
@@ -41,6 +43,7 @@ export function usePosts(): ResolvedPost[] {
   const comments = useAllComments();
   const remote = useRemotePosts();
   const { postCounts } = useRemoteComments();
+  const likes = useRemoteLikes();
 
   return useMemo(() => {
     // Echte Kommentare zählt die Datenbank (postCounts), lokal nur Demo-Kommentare.
@@ -63,21 +66,28 @@ export function usePosts(): ResolvedPost[] {
       )
       .map((post) => {
         const edit = demo.postEdits[post.id];
-        const liked = demo.likedPostIds.includes(post.id);
+        const { likeCount, liked } = resolveLikeState({
+          baseLikeCount: post.baseLikeCount,
+          remoteCount: likes.postCounts[post.id],
+          localLiked: demo.likedPostIds.includes(post.id),
+          remoteLiked: Boolean(likes.myPostLikes[post.id]),
+        });
         return {
           ...post,
           ...edit,
           time: resolveTime(post.createdAt, post.seeded, clock),
-          likeCount: post.baseLikeCount + (liked ? 1 : 0),
+          likeCount,
           liked,
-          saved: demo.savedPostIds.includes(post.id),
+          saved:
+            demo.savedPostIds.includes(post.id) ||
+            Boolean(likes.mySaves[post.id]),
           commentCount:
             (commentCounts.get(post.id) ?? 0) + (postCounts[post.id] ?? 0),
           isOwn: demo.session?.userId === post.authorId,
         };
       })
       .toSorted((a, b) => b.time - a.time);
-  }, [demo, clock, comments, remote, postCounts]);
+  }, [demo, clock, comments, remote, postCounts, likes]);
 }
 
 export function filterPosts(
@@ -112,6 +122,7 @@ export function useAllComments(): ResolvedComment[] {
   const demo = useDemoState();
   const clock = useClock();
   const { threads } = useRemoteComments();
+  const likes = useRemoteLikes();
 
   return useMemo(
     () =>
@@ -127,16 +138,21 @@ export function useAllComments(): ResolvedComment[] {
             !demo.blockedUserIds.includes(comment.authorId),
         )
         .map((comment) => {
-          const liked = demo.likedCommentIds.includes(comment.id);
+          const { likeCount, liked } = resolveLikeState({
+            baseLikeCount: comment.baseLikeCount,
+            remoteCount: likes.commentCounts[comment.id],
+            localLiked: demo.likedCommentIds.includes(comment.id),
+            remoteLiked: Boolean(likes.myCommentLikes[comment.id]),
+          });
           return {
             ...comment,
             time: resolveTime(comment.createdAt, comment.seeded, clock),
-            likeCount: comment.baseLikeCount + (liked ? 1 : 0),
+            likeCount,
             liked,
             isOwn: demo.session?.userId === comment.authorId,
           };
         }),
-    [demo, clock, threads],
+    [demo, clock, threads, likes],
   );
 }
 

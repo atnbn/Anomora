@@ -65,8 +65,16 @@ export type DemoAccount = {
 /** Persönliche Listen je Konto, damit ein Kontowechsel sie nicht vermischt. */
 type UserLists = Pick<
   DemoState,
-  "favorites" | "following" | "watchedEpisodeIds"
+  | "favorites"
+  | "following"
+  | "watchedEpisodeIds"
+  | "likedPostIds"
+  | "likedCommentIds"
+  | "savedPostIds"
 >;
+
+/** Likes und Lesezeichen ohne angemeldetes Konto: keine. */
+const NO_LIKES = { likedPostIds: [], likedCommentIds: [], savedPostIds: [] };
 
 export type DemoState = {
   session: DemoSession | null;
@@ -122,6 +130,9 @@ function defaultListsFor(userId: string): UserLists {
       userId === DEMO_VIEWER_ID
         ? ["one-piece-1155", "frieren-33", "frieren-34", "detektiv-conan-1184"]
         : [],
+    likedPostIds: userId === DEMO_VIEWER_ID ? ["p-frieren-fanart"] : [],
+    likedCommentIds: [],
+    savedPostIds: [],
   };
 }
 
@@ -142,11 +153,8 @@ function createInitialState(): DemoState {
     createdPosts: [],
     postEdits: {},
     deletedPostIds: [],
-    likedPostIds: ["p-frieren-fanart"],
-    savedPostIds: [],
     createdComments: [],
     deletedCommentIds: [],
-    likedCommentIds: [],
     blockedUserIds: [],
     preferences: { spoilerProtection: true },
   };
@@ -220,13 +228,19 @@ function switchSession(
       favorites: state.favorites,
       following: state.following,
       watchedEpisodeIds: state.watchedEpisodeIds,
+      likedPostIds: state.likedPostIds,
+      likedCommentIds: state.likedCommentIds,
+      savedPostIds: state.savedPostIds,
     };
   }
-  if (!userId) return { session: null, userLists };
+  // Likes hängen am Konto: Abgemeldet zeigt die App keine eigenen Likes.
+  if (!userId) return { session: null, userLists, ...NO_LIKES };
   return {
     session: { userId, kind },
     userLists,
-    ...(userLists[userId] ?? defaultListsFor(userId)),
+    // Ältere gespeicherte Listen kennen Likes noch nicht – Startwerte ergänzen.
+    ...defaultListsFor(userId),
+    ...userLists[userId],
     authPrompt: null,
   };
 }
