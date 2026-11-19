@@ -19,6 +19,7 @@ import {
   demoActions,
   getDemoState,
 } from "@/features/demo/store";
+import { providersFromAppMetadata } from "@/features/auth/oauth";
 
 /**
  * Anmeldung über Supabase Auth (E-Mail + Passwort).
@@ -77,6 +78,7 @@ export function userToAccount(
     emailVerified: Boolean(user.email_confirmed_at),
     onboardingComplete: Boolean(meta.onboarding_complete),
     createdAt: user.created_at,
+    providers: providersFromAppMetadata(user.app_metadata),
   };
   return row ? { ...account, ...rowToAccountFields(row) } : account;
 }
@@ -253,6 +255,42 @@ export async function signIn(email: string, password: string) {
   const account = userToAccount(data.user, row);
   demoActions.applyAuthAccount(account);
   return account;
+}
+
+/**
+ * Startet die Anmeldung mit Google. Der Browser verlässt dabei die Seite;
+ * zurück geht es über `/auth/confirm`, das neue Konten ins Onboarding schickt.
+ */
+export async function signInWithGoogle(next: string | null) {
+  const supabase = requireClient();
+  // signInWithOAuth leitet nur weiter und meldet keinen Fehler zurück. Ist
+  // Google in Supabase nicht aktiviert, landete man auf einer rohen
+  // Fehlerseite. Deshalb vorher die öffentlichen Auth-Einstellungen prüfen.
+  if (!(await isGoogleEnabled()))
+    throw new Error("Unsupported provider: provider is not enabled");
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    // provider=google: /auth/confirm meldet Fehler dann auf der Anmeldeseite.
+    options: {
+      redirectTo: `${callbackUrl(next ?? "/dashboard")}&provider=google`,
+    },
+  });
+  if (error) throw error;
+}
+
+/** Liest aus `/auth/v1/settings`, ob Google als Anbieter aktiv ist. */
+async function isGoogleEnabled(): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) return false;
+  const response = await fetch(new URL("/auth/v1/settings", url), {
+    headers: { apikey: key },
+  });
+  if (!response.ok) return false;
+  const settings = (await response.json()) as {
+    external?: Record<string, boolean>;
+  };
+  return settings.external?.google === true;
 }
 
 export async function resendConfirmation(email: string) {

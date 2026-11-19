@@ -31,6 +31,7 @@ import {
   useDemoState,
 } from "@/features/demo/store";
 import { useClock } from "@/features/demo/clock";
+import { hasPasswordLogin } from "@/features/auth/oauth";
 import {
   RequireViewer,
   SettingsSection,
@@ -249,9 +250,13 @@ function DeleteAccount({ isSupabase }: { isSupabase: boolean }) {
 }
 
 function AccountContent({ viewer }: { viewer: UserProfile }) {
-  const { session, bans } = useDemoState();
+  const { session, bans, accounts } = useDemoState();
   const clock = useClock();
   const isSupabase = session?.kind === "supabase";
+  // Reine Google-Konten haben kein Passwort, das sich ändern ließe.
+  const passwordLogin = hasPasswordLogin(
+    accounts.find((account) => account.id === viewer.id)?.providers,
+  );
   const [signingOut, setSigningOut] = useState(false);
   const email = getAccountEmail(viewer.id) ?? "";
   const ban = findActiveBan(bans, viewer.id, clock.now, clock.shift);
@@ -277,7 +282,12 @@ function AccountContent({ viewer }: { viewer: UserProfile }) {
         title="Passwort ändern"
         description="Verwende ein Passwort, das du nirgendwo anders nutzt."
       >
-        {isSupabase ? (
+        {isSupabase && !passwordLogin ? (
+          <DemoNotice>
+            Du meldest dich mit Google an und hast bei ANIMORA kein Passwort.
+            Dein Google-Konto schützt den Zugang.
+          </DemoNotice>
+        ) : isSupabase ? (
           <PasswordForm email={email} />
         ) : (
           <DemoNotice>

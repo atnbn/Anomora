@@ -24,6 +24,8 @@ import {
   signIn,
 } from "@/features/auth/supabase-auth";
 import { demoActions, getAccountStatus } from "@/features/demo/store";
+import { GoogleButton } from "@/features/auth/components/google-button";
+import { oauthLoginErrorMessage } from "@/features/auth/oauth";
 import { useViewer } from "@/features/profiles/hooks";
 import { DEMO_VIEWER_ID } from "@/data/demo/users";
 import { type FieldErrors, validateEmail } from "@/lib/validation/auth";
@@ -32,7 +34,10 @@ type Field = "email" | "password";
 
 export function LoginForm() {
   const router = useRouter();
-  const next = useSearchParams().get("next");
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next");
+  // Rückkehr von Google mit Fehler (siehe /auth/confirm).
+  const oauthError = oauthLoginErrorMessage(searchParams.get("error"));
   const { viewer, hydrated } = useViewer();
   const formRef = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState("");
@@ -112,6 +117,7 @@ export function LoginForm() {
           </FormAlert>
         )}
         {formError && <FormAlert>{formError}</FormAlert>}
+        {!formError && oauthError && <FormAlert>{oauthError}</FormAlert>}
         <TextField
           label="E-Mail-Adresse"
           type="email"
@@ -159,15 +165,18 @@ export function LoginForm() {
         oder
         <span className="h-px flex-1 bg-border" />
       </div>
-      <Button
-        variant="outline"
-        size="lg"
-        className="w-full"
-        onClick={continueWithDemo}
-        disabled={pending}
-      >
-        Mit Demo-Konto ansehen
-      </Button>
+      <div className="grid gap-3">
+        <GoogleButton next={next} disabled={pending} />
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          onClick={continueWithDemo}
+          disabled={pending}
+        >
+          Mit Demo-Konto ansehen
+        </Button>
+      </div>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Noch kein Konto?{" "}

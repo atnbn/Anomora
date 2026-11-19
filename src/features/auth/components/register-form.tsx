@@ -22,6 +22,7 @@ import {
   signUp,
 } from "@/features/auth/supabase-auth";
 import { demoActions } from "@/features/demo/store";
+import { GoogleButton } from "@/features/auth/components/google-button";
 import { useViewer } from "@/features/profiles/hooks";
 import { USERNAME_TAKEN_MESSAGE } from "@/features/profiles/profile-row";
 import { isUsernameTaken } from "@/lib/data/users";
@@ -230,6 +231,13 @@ export function RegisterForm() {
         </Button>
       </form>
 
+      <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        oder
+        <span className="h-px flex-1 bg-border" />
+      </div>
+      <GoogleButton next="/onboarding" disabled={pending} showConsent />
+
       <p className="mt-6 text-center text-sm text-muted-foreground">
         Schon registriert?{" "}
         <Link
@@ -242,8 +250,9 @@ export function RegisterForm() {
       <div className="mt-8">
         <DemoNotice>
           Dein Konto wird bei Supabase angelegt; das Passwort speichert nur
-          Supabase (verschlüsselt). Favoriten und Community-Inhalte liegen bis
-          zur nächsten Ausbaustufe noch in diesem Browser.
+          Supabase (verschlüsselt). Mit Google speichert ANIMORA kein Passwort.
+          Favoriten und Folgen liegen bis zur nächsten Ausbaustufe noch in
+          diesem Browser.
         </DemoNotice>
       </div>
     </>

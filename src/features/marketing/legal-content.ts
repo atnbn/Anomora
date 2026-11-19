@@ -58,6 +58,13 @@ export const legalDocuments: Record<LegalSlug, LegalDocument> = {
         ],
       },
       {
+        heading: "Anmeldung mit Google",
+        paragraphs: [
+          "Wenn du dich mit Google anmeldest, erhält ANIMORA über den Anmeldedienst Supabase von Google deine E-Mail-Adresse und deinen Namen. Dein Google-Passwort erfährt ANIMORA nicht.",
+          `Anbieter, Rechtsgrundlage und Übermittlung in Drittländer: ${PLACEHOLDER}`,
+        ],
+      },
+      {
         heading: "Rechtsgrundlagen und Speicherdauer",
         paragraphs: [PLACEHOLDER],
       },

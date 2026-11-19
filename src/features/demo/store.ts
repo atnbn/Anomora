@@ -60,6 +60,8 @@ export type DemoAccount = {
   emailVerified: boolean;
   onboardingComplete: boolean;
   createdAt: string;
+  /** Anmeldewege aus Supabase, z. B. `["email"]` oder `["google"]`. Fehlt bei älteren Ständen. */
+  providers?: string[];
 };
 
 /** Persönliche Listen je Konto, damit ein Kontowechsel sie nicht vermischt. */

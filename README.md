@@ -10,7 +10,7 @@ Eine Community-Plattform für Anime-Fans: Serien entdecken, Episoden verfolgen u
 
 | Bereich                                           | Stand                                                    |
 | ------------------------------------------------- | -------------------------------------------------------- |
-| Registrierung, Anmeldung, Passwort, E-Mail ändern | echt über Supabase Auth                                  |
+| Registrierung, Anmeldung, Passwort, E-Mail ändern | echt über Supabase Auth, auch mit Google                 |
 | Profile (Nutzername, Anzeigename, Beschreibung)   | echt in der Tabelle `profiles` mit RLS                   |
 | Beiträge (erstellen, bearbeiten, löschen)         | echt in der Tabelle `posts` mit RLS                      |
 | Anime, Episoden, Sendetermine, Suche              | echt von AniList, gecacht auf Server, CDN und im Browser |
@@ -27,7 +27,7 @@ Die Oberfläche ist für alle Bereiche fertig. Die Demo-Bereiche werden nach und
 4. **Tests:** Vitest prüft die Logik, z. B. ob die Regeln der Datenbank und der Formulare übereinstimmen.
 5. **CI:** GitHub Actions prüft jeden Pull Request mit Formatierung, Lint, TypeScript, Tests und Build.
 
-Beispiele: [Profiltabelle mit RLS](docs/specs/profiles.md), [Beiträge als erste Community-Tabelle](docs/specs/posts.md), [Kommentare](docs/specs/comments.md).
+Beispiele: [Profiltabelle mit RLS](docs/specs/profiles.md), [Beiträge als erste Community-Tabelle](docs/specs/posts.md), [Kommentare](docs/specs/comments.md), [Anmeldung mit Google](docs/specs/google-login.md).
 
 ## Lokal starten
 

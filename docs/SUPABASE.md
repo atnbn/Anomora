@@ -62,6 +62,26 @@ Der Server-Client gehört nicht in einen globalen Singleton oder einen gemeinsam
 3. **E-Mail-Versand:** Der eingebaute Versand von Supabase ist nur für Tests gedacht und stark begrenzt (wenige Mails pro Stunde). Für echte Nutzer unter **Authentication → SMTP Settings** einen eigenen SMTP-Dienst eintragen.
 4. **E-Mail-Vorlagen:** Die Standardvorlagen funktionieren. Ihre Links nutzen PKCE und müssen deshalb im selben Browser geöffnet werden, in dem registriert bzw. der Reset angefordert wurde. Für browserunabhängige Links die Vorlagen auf `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup&next=/onboarding` (Reset: `type=recovery&next=/reset-password`) umstellen – `/auth/confirm` unterstützt beide Varianten. Wird ein PKCE-Bestätigungslink in einem anderen Browser geöffnet, ist die Adresse trotzdem bestätigt (Supabase prüft den Link vor der Weiterleitung); die App zeigt dann „E-Mail-Adresse bestätigt – jetzt anmelden“. Ein erneutes Senden an eine schon bestätigte Adresse verschickt keine Mail.
 
+## Anmeldung mit Google einrichten
+
+Spezifikation: [specs/google-login.md](specs/google-login.md). Das Client Secret ist ein Geheimnis und gehört nur ins Supabase-Dashboard – nie ins Repository, in `.env.local` oder in Vercel.
+
+1. **Google Cloud Console → APIs & Dienste → OAuth-Zustimmungsbildschirm:** Typ „Extern“, App-Name „ANIMORA“, Support-E-Mail, Bereiche `openid`, `email`, `profile`. Im Status „Testen“ können sich nur eingetragene Testnutzer anmelden.
+2. **Anmeldedaten → OAuth-Client-ID erstellen:** Typ „Webanwendung“, autorisierte Weiterleitungs-URI `https://pkjhfyjyoygmoyqmmwng.supabase.co/auth/v1/callback`.
+3. **Supabase → Authentication → Providers → Google:** aktivieren, Client-ID und Client Secret eintragen, speichern.
+4. **Für alle Besucher:** Zustimmungsbildschirm auf „In Produktion“ stellen.
+
+Die Redirect-URLs mit `/**` (siehe oben) decken die Rückkehr bereits ab, neue Umgebungsvariablen braucht die App nicht. Ob Google aktiv ist, prüft die App vor dem Start über `/auth/v1/settings`; ist es aus, zeigt der Knopf „Die Anmeldung mit Google ist gerade nicht verfügbar.“
+
+| Datei                                                             | Aufgabe                                                                                      |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `src/features/auth/components/google-button.tsx`                  | Knopf „Mit Google fortfahren“ auf Anmelde- und Registrierungsseite                           |
+| `src/features/auth/oauth.ts`                                      | Reine Hilfsfunktionen: Fehler der Rückkehr, Ziel nach dem Einlösen, Anmeldewege eines Kontos |
+| `src/app/auth/confirm/route.ts`                                   | Tauscht den Code; neue Konten → Onboarding, Abbruch → `/login?error=…`                       |
+| `supabase/migrations/20261119120000_profile_name_from_google.sql` | Anzeigename aus dem Google-Namen, wenn keiner angegeben ist                                  |
+
+Hat jemand schon ein Konto mit derselben bestätigten E-Mail-Adresse, verknüpft Supabase das Google-Konto automatisch damit.
+
 ## Anmeldung in ANIMORA
 
 | Datei                                 | Aufgabe                                                                                                                                                             |

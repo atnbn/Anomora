@@ -2,6 +2,11 @@ import type { AuthError, EmailOtpType } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { safeRedirect } from "@/lib/validation/auth";
+import {
+  type OAuthLoginError,
+  destinationAfterCallback,
+  oauthErrorFromParams,
+} from "@/features/auth/oauth";
 
 const OTP_TYPES: EmailOtpType[] = [
   "signup",
@@ -18,6 +23,10 @@ const OTP_TYPES: EmailOtpType[] = [
  * - `code` (PKCE, Standard von @supabase/ssr): wird gegen eine Sitzung
  *   getauscht; funktioniert nur im Browser, in dem der Link angefordert wurde.
  * - `token_hash` + `type`: für angepasste E-Mail-Vorlagen, browserunabhängig.
+ * - Rückkehr von Google (`code` mit `provider=google`): Abbruch und Fehler
+ *   führen zurück auf die Anmeldeseite (`/login?error=…`).
+ *
+ * Konten ohne abgeschlossenes Onboarding landen zuerst im Onboarding.
  *
  * Weitergeleitet wird nur auf interne Pfade (`next`), nie auf fremde Seiten.
  */
@@ -32,12 +41,19 @@ export async function GET(request: NextRequest) {
   const failure = new URL("/verify-email?status=invalid", request.url);
   if (isRecovery) failure.pathname = "/reset-password";
 
+  // Rückkehr von Google: Abbruch oder Fehler gehören auf die Anmeldeseite.
+  const oauthError = oauthErrorFromParams(params);
+  const viaOAuth = params.get("provider") === "google" || oauthError !== null;
+  if (oauthError) return loginWithError(oauthError, request);
+
   try {
     const supabase = await createClient();
     if (code) {
       const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (!error) return redirect(next, request);
+      if (!error)
+        return redirect(await destinationFor(supabase, next), request);
       logFailure(error);
+      if (viaOAuth) return loginWithError("oauth_failed", request);
       // Supabase stellt den Code erst nach geprüftem Link aus: Die Adresse ist
       // bestätigt, nur die Sitzung fehlt (meist ein anderer Browser).
       if (!isRecovery) failure.searchParams.set("status", "confirmed");
@@ -46,7 +62,8 @@ export async function GET(request: NextRequest) {
         type,
         token_hash: tokenHash,
       });
-      if (!error) return redirect(next, request);
+      if (!error)
+        return redirect(await destinationFor(supabase, next), request);
       logFailure(error);
     }
   } catch (error) {
@@ -56,6 +73,34 @@ export async function GET(request: NextRequest) {
     );
   }
   return withNoStore(NextResponse.redirect(failure));
+}
+
+/**
+ * Neue Konten (z. B. von Google) haben das Onboarding noch nicht
+ * abgeschlossen und richten zuerst ihr Profil ein. Fehlt die Profilzeile
+ * oder die Tabelle, gilt das gewünschte Ziel.
+ */
+async function destinationFor(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  next: string,
+): Promise<string> {
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+  if (!userId) return next;
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("onboarding_complete")
+    .eq("id", userId)
+    .maybeSingle();
+  const onboardingComplete =
+    error || !data ? null : Boolean(data.onboarding_complete);
+  return destinationAfterCallback(next, onboardingComplete);
+}
+
+function loginWithError(error: OAuthLoginError, request: NextRequest) {
+  const target = new URL("/login", request.url);
+  target.searchParams.set("error", error);
+  return withNoStore(NextResponse.redirect(target));
 }
 
 function logFailure(error: AuthError) {
